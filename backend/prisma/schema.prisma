@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== COMPANY ====================
+model Company {
+  id           String   @id @default(uuid())
+  companyName  String   @map("company_name")
+  companyCode  String   @unique @map("company_code")
+  industry     String?
+  address      String?
+  contactEmail String?  @map("contact_email")
+  contactPhone String?  @map("contact_phone")
+  logoUrl      String?  @map("logo_url")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sites            Site[]
+  users            User[]
+  companySettings  CompanySettings?
+  auditLogs        AuditLog[]
+
+  @@map("company")
+}
+
+// ==================== SITES ====================
+model Site {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  siteName      String   @map("site_name")
+  siteCode      String   @map("site_code")
+  siteType      String?  @map("site_type")
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  managerName   String?  @map("manager_name")
+  managerEmail  String?  @map("manager_email")
+  managerPhone  String?  @map("manager_phone")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  safetyMetrics    SafetyMetrics[]
+  userSiteAccess   UserSiteAccess[]
+  auditLogs        AuditLog[]
+
+  @@unique([companyId, siteCode])
+  @@map("sites")
+}
+
+// ==================== USERS ====================
+model User {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         Role
+  accessLevel  AccessLevel @default(ALL_SITES) @map("access_level")
+  isActive     Boolean  @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company              Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userSiteAccess       UserSiteAccess[]
+  safetyMetrics        SafetyMetrics[]
+  auditLogs            AuditLog[]
+  passwordResetTokens  PasswordResetToken[]
+  companySettingsUpdates CompanySettings[]
+
+  @@map("users")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum AccessLevel {
+  ALL_SITES
+  SPECIFIC_SITES
+}
+
+// ==================== USER SITE ACCESS ====================
+model UserSiteAccess {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  siteId    String   @map("site_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, siteId])
+  @@map("user_site_access")
+}
+
+// ==================== SAFETY METRICS ====================
+model SafetyMetrics {
+  id    String @id @default(uuid())
+  siteId String @map("site_id")
+  month String
+  year  Int
+
+  // Operational Metrics
+  manDaysTarget            Int     @default(0) @map("man_days_target")
+  manDaysActual            Int     @default(0) @map("man_days_actual")
+  manDaysScore             Decimal? @map("man_days_score") @db.Decimal(5, 2)
+
+  safeWorkHoursTarget      Int     @default(0) @map("safe_work_hours_target")
+  safeWorkHoursActual      Int     @default(0) @map("safe_work_hours_actual")
+  safeWorkHoursScore       Decimal? @map("safe_work_hours_score") @db.Decimal(5, 2)
+
+  // Training Metrics
+  safetyInductionTarget    Int     @default(0) @map("safety_induction_target")
+  safetyInductionActual    Int     @default(0) @map("safety_induction_actual")
+  safetyInductionScore     Decimal? @map("safety_induction_score") @db.Decimal(5, 2)
+
+  toolBoxTalkTarget        Int     @default(0) @map("tool_box_talk_target")
+  toolBoxTalkActual        Int     @default(0) @map("tool_box_talk_actual")
+  toolBoxTalkScore         Decimal? @map("tool_box_talk_score") @db.Decimal(5, 2)
+
+  jobSpecificTrainingTarget Int    @default(0) @map("job_specific_training_target")
+  jobSpecificTrainingActual Int    @default(0) @map("job_specific_training_actual")
+  jobSpecificTrainingScore  Decimal? @map("job_specific_training_score") @db.Decimal(5, 2)
+
+  // Inspection & Compliance
+  formalSafetyInspectionTarget Int @default(0) @map("formal_safety_inspection_target")
+  formalSafetyInspectionActual Int @default(0) @map("formal_safety_inspection_actual")
+  formalSafetyInspectionScore  Decimal? @map("formal_safety_inspection_score") @db.Decimal(5, 2)
+
+  nonComplianceRaisedTarget    Int @default(0) @map("non_compliance_raised_target")
+  nonComplianceRaisedActual    Int @default(0) @map("non_compliance_raised_actual")
+  nonComplianceRaisedScore     Decimal? @map("non_compliance_raised_score") @db.Decimal(5, 2)
+
+  nonComplianceCloseTarget     Int @default(0) @map("non_compliance_close_target")
+  nonComplianceCloseActual     Int @default(0) @map("non_compliance_close_actual")
+  nonComplianceCloseScore      Decimal? @map("non_compliance_close_score") @db.Decimal(5, 2)
+
+  safetyObservationRaisedTarget Int @default(0) @map("safety_observation_raised_target")
+  safetyObservationRaisedActual Int @default(0) @map("safety_observation_raised_actual")
+  safetyObservationRaisedScore  Decimal? @map("safety_observation_raised_score") @db.Decimal(5, 2)
+
+  safetyObservationCloseTarget  Int @default(0) @map("safety_observation_close_target")
+  safetyObservationCloseActual  Int @default(0) @map("safety_observation_close_actual")
+  safetyObservationCloseScore   Decimal? @map("safety_observation_close_score") @db.Decimal(5, 2)
+
+  // Documentation
+  workPermitIssuedTarget       Int @default(0) @map("work_permit_issued_target")
+  workPermitIssuedActual       Int @default(0) @map("work_permit_issued_actual")
+  workPermitIssuedScore        Decimal? @map("work_permit_issued_score") @db.Decimal(5, 2)
+
+  safeWorkMethodStatementTarget Int @default(0) @map("safe_work_method_statement_target")
+  safeWorkMethodStatementActual Int @default(0) @map("safe_work_method_statement_actual")
+  safeWorkMethodStatementScore  Decimal? @map("safe_work_method_statement_score") @db.Decimal(5, 2)
+
+  // Preparedness & Audit
+  emergencyMockDrillsTarget    Int @default(0) @map("emergency_mock_drills_target")
+  emergencyMockDrillsActual    Int @default(0) @map("emergency_mock_drills_actual")
+  emergencyMockDrillsScore     Decimal? @map("emergency_mock_drills_score") @db.Decimal(5, 2)
+
+  internalAuditTarget          Int @default(0) @map("internal_audit_target")
+  internalAuditActual          Int @default(0) @map("internal_audit_actual")
+  internalAuditScore           Decimal? @map("internal_audit_score") @db.Decimal(5, 2)
+
+  // Incidents
+  nearMissReportTarget         Int @default(0) @map("near_miss_report_target")
+  nearMissReportActual         Int @default(0) @map("near_miss_report_actual")
+  nearMissReportScore          Decimal? @map("near_miss_report_score") @db.Decimal(5, 2)
+
+  firstAidInjuryTarget         Int @default(0) @map("first_aid_injury_target")
+  firstAidInjuryActual         Int @default(0) @map("first_aid_injury_actual")
+  firstAidInjuryScore          Decimal? @map("first_aid_injury_score") @db.Decimal(5, 2)
+
+  medicalTreatmentInjuryTarget Int @default(0) @map("medical_treatment_injury_target")
+  medicalTreatmentInjuryActual Int @default(0) @map("medical_treatment_injury_actual")
+  medicalTreatmentInjuryScore  Decimal? @map("medical_treatment_injury_score") @db.Decimal(5, 2)
+
+  lostTimeInjuryTarget         Int @default(0) @map("lost_time_injury_target")
+  lostTimeInjuryActual         Int @default(0) @map("lost_time_injury_actual")
+  lostTimeInjuryScore          Decimal? @map("lost_time_injury_score") @db.Decimal(5, 2)
+
+  // Calculated Fields
+  totalScore      Decimal @default(0) @map("total_score") @db.Decimal(5, 2)
+  maxScore        Decimal @default(100) @map("max_score") @db.Decimal(5, 2)
+  percentage      Decimal @default(0) @db.Decimal(5, 2)
+  rating          Rating?
+
+  // Category Scores
+  operationalScore    Decimal @default(0) @map("operational_score") @db.Decimal(5, 2)
+  trainingScore       Decimal @default(0) @map("training_score") @db.Decimal(5, 2)
+  inspectionScore     Decimal @default(0) @map("inspection_score") @db.Decimal(5, 2)
+  complianceScore     Decimal @default(0) @map("compliance_score") @db.Decimal(5, 2)
+  observationScore    Decimal @default(0) @map("observation_score") @db.Decimal(5, 2)
+  documentationScore  Decimal @default(0) @map("documentation_score") @db.Decimal(5, 2)
+  preparednessScore   Decimal @default(0) @map("preparedness_score") @db.Decimal(5, 2)
+  auditScore          Decimal @default(0) @map("audit_score") @db.Decimal(5, 2)
+  incidentScore       Decimal @default(0) @map("incident_score") @db.Decimal(5, 2)
+
+  // Metadata
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  site Site  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([siteId, month, year])
+  @@map("safety_metrics")
+}
+
+enum Rating {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ==================== COMPANY SETTINGS ====================
+model CompanySettings {
+  id        String @id @default(uuid())
+  companyId String @unique @map("company_id")
+
+  // Default Targets (18 parameters)
+  defaultManDaysTarget                Int @default(1000) @map("default_man_days_target")
+  defaultSafeWorkHoursTarget          Int @default(8000) @map("default_safe_work_hours_target")
+  defaultSafetyInductionTarget        Int @default(50) @map("default_safety_induction_target")
+  defaultToolBoxTalkTarget            Int @default(20) @map("default_tool_box_talk_target")
+  defaultJobSpecificTrainingTarget    Int @default(30) @map("default_job_specific_training_target")
+  defaultFormalSafetyInspectionTarget Int @default(10) @map("default_formal_safety_inspection_target")
+  defaultNonComplianceRaisedTarget    Int @default(0) @map("default_non_compliance_raised_target")
+  defaultNonComplianceCloseTarget     Int @default(100) @map("default_non_compliance_close_target")
+  defaultSafetyObservationRaisedTarget Int @default(50) @map("default_safety_observation_raised_target")
+  defaultSafetyObservationCloseTarget Int @default(100) @map("default_safety_observation_close_target")
+  defaultWorkPermitIssuedTarget       Int @default(100) @map("default_work_permit_issued_target")
+  defaultSafeWorkMethodStatementTarget Int @default(50) @map("default_safe_work_method_statement_target")
+  defaultEmergencyMockDrillsTarget    Int @default(2) @map("default_emergency_mock_drills_target")
+  defaultInternalAuditTarget          Int @default(1) @map("default_internal_audit_target")
+  defaultNearMissReportTarget         Int @default(0) @map("default_near_miss_report_target")
+  defaultFirstAidInjuryTarget         Int @default(0) @map("default_first_aid_injury_target")
+  defaultMedicalTreatmentInjuryTarget Int @default(0) @map("default_medical_treatment_injury_target")
+  defaultLostTimeInjuryTarget         Int @default(0) @map("default_lost_time_injury_target")
+
+  // KPI Weights (18 parameters)
+  weightManDays                 Decimal @default(5.0) @map("weight_man_days") @db.Decimal(5, 2)
+  weightSafeWorkHours           Decimal @default(5.0) @map("weight_safe_work_hours") @db.Decimal(5, 2)
+  weightSafetyInduction         Decimal @default(5.0) @map("weight_safety_induction") @db.Decimal(5, 2)
+  weightToolBoxTalk             Decimal @default(5.0) @map("weight_tool_box_talk") @db.Decimal(5, 2)
+  weightJobSpecificTraining     Decimal @default(5.0) @map("weight_job_specific_training") @db.Decimal(5, 2)
+  weightFormalSafetyInspection  Decimal @default(5.0) @map("weight_formal_safety_inspection") @db.Decimal(5, 2)
+  weightNonComplianceRaised     Decimal @default(5.0) @map("weight_non_compliance_raised") @db.Decimal(5, 2)
+  weightNonComplianceClose      Decimal @default(5.0) @map("weight_non_compliance_close") @db.Decimal(5, 2)
+  weightSafetyObservationRaised Decimal @default(5.0) @map("weight_safety_observation_raised") @db.Decimal(5, 2)
+  weightSafetyObservationClose  Decimal @default(5.0) @map("weight_safety_observation_close") @db.Decimal(5, 2)
+  weightWorkPermitIssued        Decimal @default(5.0) @map("weight_work_permit_issued") @db.Decimal(5, 2)
+  weightSafeWorkMethodStatement Decimal @default(5.0) @map("weight_safe_work_method_statement") @db.Decimal(5, 2)
+  weightEmergencyMockDrills     Decimal @default(5.0) @map("weight_emergency_mock_drills") @db.Decimal(5, 2)
+  weightInternalAudit           Decimal @default(5.0) @map("weight_internal_audit") @db.Decimal(5, 2)
+  weightNearMissReport          Decimal @default(5.0) @map("weight_near_miss_report") @db.Decimal(5, 2)
+  weightFirstAidInjury          Decimal @default(10.0) @map("weight_first_aid_injury") @db.Decimal(5, 2)
+  weightMedicalTreatmentInjury  Decimal @default(10.0) @map("weight_medical_treatment_injury") @db.Decimal(5, 2)
+  weightLostTimeInjury          Decimal @default(15.0) @map("weight_lost_time_injury") @db.Decimal(5, 2)
+
+  // Rating Thresholds
+  ratingLowMax    Decimal @default(50.0) @map("rating_low_max") @db.Decimal(5, 2)
+  ratingMediumMax Decimal @default(80.0) @map("rating_medium_max") @db.Decimal(5, 2)
+
+  // Metadata
+  updatedBy String?   @map("updated_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("company_settings")
+}
+
+// ==================== AUDIT LOGS ====================
+model AuditLog {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  siteId     String?  @map("site_id")
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// ==================== PASSWORD RESET ====================
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
