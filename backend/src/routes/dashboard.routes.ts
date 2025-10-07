@@ -26,4 +26,7 @@ router.post('/metrics', asyncHandler(dashboardController.upsertMetrics.bind(dash
 // Get sites for dropdown
 router.get('/sites', asyncHandler(dashboardController.getSites.bind(dashboardController)));
 
+// Bulk import metrics from Excel
+router.post('/metrics/bulk-import', asyncHandler(dashboardController.bulkImportMetrics.bind(dashboardController)));
+
 export default router;

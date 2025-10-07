@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from '@/pages/Login.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
+import EnhancedDashboard from '@/pages/EnhancedDashboard.tsx';
+import ExcelImport from '@/pages/ExcelImport.tsx';
+import Admin from '@/pages/Admin.tsx';
 import ProtectedRoute from '@/components/auth/ProtectedRoute.tsx';
 import { useAuthStore } from '@/store/authStore.ts';
 
@@ -33,6 +36,33 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/enhanced"
+            element={
+              <ProtectedRoute>
+                <EnhancedDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/import"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+                <ExcelImport />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Admin />
               </ProtectedRoute>
             }
           />

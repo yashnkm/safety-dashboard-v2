@@ -11,9 +11,10 @@ export class DashboardController {
   async getKPISummary(req: AuthRequest, res: Response) {
     const { siteId, month, year } = req.query;
     const companyId = req.user!.companyId;
+    const role = req.user!.role;
 
     const kpi = await safetyMetricsService.getKPISummary({
-      companyId,
+      companyId: role === 'SUPER_ADMIN' ? undefined : companyId,
       siteId: siteId as string,
       month: month as string,
       year: year ? parseInt(year as string) : undefined,
@@ -32,9 +33,10 @@ export class DashboardController {
   async getMetrics(req: AuthRequest, res: Response) {
     const { siteId, month, year } = req.query;
     const companyId = req.user!.companyId;
+    const role = req.user!.role;
 
     const metrics = await safetyMetricsService.getMetrics({
-      companyId,
+      companyId: role === 'SUPER_ADMIN' ? undefined : companyId,
       siteId: siteId as string,
       month: month as string,
       year: year ? parseInt(year as string) : undefined,
@@ -53,9 +55,10 @@ export class DashboardController {
   async getMetricsBySiteAndPeriod(req: AuthRequest, res: Response) {
     const { siteId, year, month } = req.params;
     const companyId = req.user!.companyId;
+    const role = req.user!.role;
 
     const metric = await safetyMetricsService.getMetricsBySiteAndPeriod(
-      companyId,
+      role === 'SUPER_ADMIN' ? undefined : companyId,
       siteId,
       month,
       parseInt(year)
@@ -100,15 +103,55 @@ export class DashboardController {
 
   /**
    * GET /api/dashboard/sites
-   * Get all sites for the user's company
+   * Get all sites for the user's company (filtered by user access level)
    */
   async getSites(req: AuthRequest, res: Response) {
     const companyId = req.user!.companyId;
-    const sites = await safetyMetricsService.getSites(companyId);
+    const userId = req.user!.id;
+    const accessLevel = req.user!.accessLevel;
+    const role = req.user!.role;
+
+    const sites = await safetyMetricsService.getSites(companyId, userId, accessLevel, role);
 
     res.json({
       status: 'success',
       data: sites,
+    });
+  }
+
+  /**
+   * POST /api/dashboard/metrics/bulk-import
+   * Bulk import metrics from Excel file
+   */
+  async bulkImportMetrics(req: AuthRequest, res: Response) {
+    const { siteId, year, metricsData } = req.body;
+    const companyId = req.user!.companyId;
+    const userId = req.user!.id;
+    const accessLevel = req.user!.accessLevel;
+    const role = req.user!.role;
+
+    // Validate required fields
+    if (!siteId || !year || !metricsData || !Array.isArray(metricsData)) {
+      throw new AppError(400, 'siteId, year, and metricsData array are required');
+    }
+
+    // Only SUPER_ADMIN and ADMIN can import
+    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+      throw new AppError(403, 'Only administrators can import data');
+    }
+
+    const result = await safetyMetricsService.bulkImportMetrics(
+      companyId,
+      siteId,
+      year,
+      userId,
+      role,
+      metricsData
+    );
+
+    res.status(201).json({
+      status: 'success',
+      data: result,
     });
   }
 }

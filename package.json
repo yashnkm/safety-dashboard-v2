@@ -1,0 +1,15 @@
+{
+  "name": "safety-dashboard-v2",
+  "version": "1.0.0",
+  "description": "Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.",
+  "main": "generate-sample-excel.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

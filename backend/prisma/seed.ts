@@ -186,23 +186,25 @@ async function main() {
       internalAuditActual: 1,
       internalAuditScore: 10,
 
-      // Incidents
+      // Incidents (Binary scoring: 0 incidents = 10 points, any incident = 0 points)
       nearMissReportTarget: 0,
       nearMissReportActual: 3,
-      nearMissReportScore: 8.5,
+      nearMissReportScore: 0, // 3 incidents = 0 points
       firstAidInjuryTarget: 0,
       firstAidInjuryActual: 2,
-      firstAidInjuryScore: 8,
+      firstAidInjuryScore: 0, // 2 injuries = 0 points
       medicalTreatmentInjuryTarget: 0,
       medicalTreatmentInjuryActual: 0,
-      medicalTreatmentInjuryScore: 10,
+      medicalTreatmentInjuryScore: 10, // 0 injuries = 10 points
       lostTimeInjuryTarget: 0,
       lostTimeInjuryActual: 0,
-      lostTimeInjuryScore: 15,
+      lostTimeInjuryScore: 10, // 0 injuries = 10 points (max is 10, not 15)
 
-      // Calculated fields
-      totalScore: 175.5,
-      percentage: 87.75,
+      // Calculated fields will be auto-calculated by backend
+      // January: (9.5+9.5+9.6+10+9.3+10+7.5+10+10+9.8+9.8+10+10+10+0+0+10+10) / 18 = 8.67 avg * 10 = 86.7%
+      totalScore: 86.7,
+      maxScore: 100,
+      percentage: 86.7,
       rating: 'HIGH',
 
       operationalScore: 19,
@@ -276,19 +278,21 @@ async function main() {
 
       nearMissReportTarget: 0,
       nearMissReportActual: 2,
-      nearMissReportScore: 9,
+      nearMissReportScore: 0, // 2 incidents = 0 points
       firstAidInjuryTarget: 0,
       firstAidInjuryActual: 1,
-      firstAidInjuryScore: 9,
+      firstAidInjuryScore: 0, // 1 injury = 0 points
       medicalTreatmentInjuryTarget: 0,
       medicalTreatmentInjuryActual: 0,
-      medicalTreatmentInjuryScore: 10,
+      medicalTreatmentInjuryScore: 10, // 0 injuries = 10 points
       lostTimeInjuryTarget: 0,
       lostTimeInjuryActual: 0,
-      lostTimeInjuryScore: 15,
+      lostTimeInjuryScore: 10, // 0 injuries = 10 points
 
-      totalScore: 182.1,
-      percentage: 91.05,
+      // February: (9.8+9.8+10+10+10+10+8.5+10+10+10+10+10+10+10+0+0+10+10) / 18 = 9.34 avg * 10 = 93.4%
+      totalScore: 93.4,
+      maxScore: 100,
+      percentage: 93.4,
       rating: 'HIGH',
 
       operationalScore: 19.6,

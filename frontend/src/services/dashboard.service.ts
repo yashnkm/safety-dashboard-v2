@@ -65,8 +65,16 @@ export const dashboardService = {
   /**
    * Get all sites
    */
-  getSites: async (): Promise<Site[]> => {
+  getSites: async () => {
     const response = await api.get('/dashboard/sites');
-    return response.data.data;
+    return response.data;
+  },
+
+  /**
+   * Bulk import metrics from Excel
+   */
+  bulkImportMetrics: async (data: { siteId: string; year: number; metricsData: any[] }) => {
+    const response = await api.post('/dashboard/metrics/bulk-import', data);
+    return response.data;
   },
 };

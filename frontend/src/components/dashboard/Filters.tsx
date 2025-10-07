@@ -1,5 +1,11 @@
 import { Card, CardContent } from '@/components/ui/card.tsx';
-import { Select } from '@/components/ui/select.tsx';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select.tsx';
 import { Calendar, MapPin } from 'lucide-react';
 
 interface Site {
@@ -58,15 +64,20 @@ export default function Filters({
             </label>
             <Select
               value={selectedSite}
-              onChange={(e) => onSiteChange(e.target.value)}
+              onValueChange={onSiteChange}
               disabled={loading}
             >
-              <option value="all">All Sites</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.siteName}
-                </option>
-              ))}
+              <SelectTrigger>
+                <SelectValue placeholder="Select site" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sites</SelectItem>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.company ? `${site.siteName} (${site.company.companyName})` : site.siteName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
@@ -78,14 +89,19 @@ export default function Filters({
             </label>
             <Select
               value={selectedMonth}
-              onChange={(e) => onMonthChange(e.target.value)}
+              onValueChange={onMonthChange}
               disabled={loading}
             >
-              {months.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
+              <SelectTrigger>
+                <SelectValue placeholder="Select month" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map((month) => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
@@ -97,14 +113,19 @@ export default function Filters({
             </label>
             <Select
               value={selectedYear.toString()}
-              onChange={(e) => onYearChange(parseInt(e.target.value))}
+              onValueChange={(value) => onYearChange(parseInt(value))}
               disabled={loading}
             >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
+              <SelectTrigger>
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
         </div>
