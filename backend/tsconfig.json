@@ -11,7 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "types": ["node"],
     "sourceMap": true
   },
   "include": ["src/**/*"],
