@@ -4,6 +4,7 @@ export interface User {
   fullName: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'VIEWER';
   accessLevel: 'ALL_SITES' | 'SPECIFIC_SITES';
+  companyId: string;
   company: {
     id: string;
     companyName: string;

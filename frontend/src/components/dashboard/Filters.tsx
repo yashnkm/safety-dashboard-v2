@@ -11,6 +11,9 @@ import { Calendar, MapPin } from 'lucide-react';
 interface Site {
   id: string;
   siteName: string;
+  company?: {
+    companyName: string;
+  };
 }
 
 interface FiltersProps {

@@ -28,6 +28,9 @@ import { Separator } from '@/components/ui/separator.tsx';
 interface Site {
   id: string;
   siteName: string;
+  company?: {
+    companyName: string;
+  };
 }
 
 interface AppSidebarProps {
