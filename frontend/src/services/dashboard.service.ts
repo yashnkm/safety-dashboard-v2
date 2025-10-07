@@ -13,10 +13,13 @@ interface MetricsFilters {
   year?: number;
 }
 
-interface Site {
+export interface Site {
   id: string;
   siteName: string;
   siteCode: string;
+  company?: {
+    companyName: string;
+  };
 }
 
 export const dashboardService = {

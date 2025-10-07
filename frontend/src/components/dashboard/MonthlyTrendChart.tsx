@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface MonthlyData {
@@ -14,7 +14,7 @@ interface MonthlyTrendChartProps {
   year: number;
 }
 
-export default function MonthlyTrendChart({ data, currentMonth, year }: MonthlyTrendChartProps) {
+export default function MonthlyTrendChart({ data, year }: MonthlyTrendChartProps) {
   // Calculate statistics
   const scores = data.map(d => d.score).filter(s => s > 0);
   const currentScore = scores.length > 0 ? scores[scores.length - 1] : 0;

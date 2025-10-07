@@ -106,25 +106,30 @@ export default function EnhancedDashboard() {
 
     const metric = metricsData[0];
 
+    const calculatePercentage = (actual: number, target: number) => {
+      if (target === 0) return 0;
+      return (actual / target) * 100;
+    };
+
     return [
-      { name: 'Man Days', target: metric.manDaysTarget || 0, actual: metric.manDaysActual || 0 },
-      { name: 'Safe Hours', target: metric.safeWorkHoursTarget || 0, actual: metric.safeWorkHoursActual || 0 },
-      { name: 'Safety Induction', target: metric.safetyInductionTarget || 0, actual: metric.safetyInductionActual || 0 },
-      { name: 'Toolbox Talk', target: metric.toolBoxTalkTarget || 0, actual: metric.toolBoxTalkActual || 0 },
-      { name: 'Job Training', target: metric.jobSpecificTrainingTarget || 0, actual: metric.jobSpecificTrainingActual || 0 },
-      { name: 'Inspections', target: metric.formalSafetyInspectionTarget || 0, actual: metric.formalSafetyInspectionActual || 0 },
-      { name: 'Non-Comp Raised', target: metric.nonComplianceRaisedTarget || 0, actual: metric.nonComplianceRaisedActual || 0 },
-      { name: 'Non-Comp Close', target: metric.nonComplianceCloseTarget || 0, actual: metric.nonComplianceCloseActual || 0 },
-      { name: 'Obs Raised', target: metric.safetyObservationRaisedTarget || 0, actual: metric.safetyObservationRaisedActual || 0 },
-      { name: 'Obs Close', target: metric.safetyObservationCloseTarget || 0, actual: metric.safetyObservationCloseActual || 0 },
-      { name: 'Work Permits', target: metric.workPermitIssuedTarget || 0, actual: metric.workPermitIssuedActual || 0 },
-      { name: 'SWMS', target: metric.safeWorkMethodStatementTarget || 0, actual: metric.safeWorkMethodStatementActual || 0 },
-      { name: 'Mock Drills', target: metric.emergencyMockDrillsTarget || 0, actual: metric.emergencyMockDrillsActual || 0 },
-      { name: 'Internal Audit', target: metric.internalAuditTarget || 0, actual: metric.internalAuditActual || 0 },
-      { name: 'Near Miss', target: metric.nearMissReportTarget || 0, actual: metric.nearMissReportActual || 0 },
-      { name: 'First Aid', target: metric.firstAidInjuryTarget || 0, actual: metric.firstAidInjuryActual || 0 },
-      { name: 'Medical Treat', target: metric.medicalTreatmentInjuryTarget || 0, actual: metric.medicalTreatmentInjuryActual || 0 },
-      { name: 'Lost Time', target: metric.lostTimeInjuryTarget || 0, actual: metric.lostTimeInjuryActual || 0 },
+      { name: 'Man Days', percentage: calculatePercentage(metric.manDaysActual || 0, metric.manDaysTarget || 0) },
+      { name: 'Safe Hours', percentage: calculatePercentage(metric.safeWorkHoursActual || 0, metric.safeWorkHoursTarget || 0) },
+      { name: 'Safety Induction', percentage: calculatePercentage(metric.safetyInductionActual || 0, metric.safetyInductionTarget || 0) },
+      { name: 'Toolbox Talk', percentage: calculatePercentage(metric.toolBoxTalkActual || 0, metric.toolBoxTalkTarget || 0) },
+      { name: 'Job Training', percentage: calculatePercentage(metric.jobSpecificTrainingActual || 0, metric.jobSpecificTrainingTarget || 0) },
+      { name: 'Inspections', percentage: calculatePercentage(metric.formalSafetyInspectionActual || 0, metric.formalSafetyInspectionTarget || 0) },
+      { name: 'Non-Comp Raised', percentage: calculatePercentage(metric.nonComplianceRaisedActual || 0, metric.nonComplianceRaisedTarget || 0) },
+      { name: 'Non-Comp Close', percentage: calculatePercentage(metric.nonComplianceCloseActual || 0, metric.nonComplianceCloseTarget || 0) },
+      { name: 'Obs Raised', percentage: calculatePercentage(metric.safetyObservationRaisedActual || 0, metric.safetyObservationRaisedTarget || 0) },
+      { name: 'Obs Close', percentage: calculatePercentage(metric.safetyObservationCloseActual || 0, metric.safetyObservationCloseTarget || 0) },
+      { name: 'Work Permits', percentage: calculatePercentage(metric.workPermitIssuedActual || 0, metric.workPermitIssuedTarget || 0) },
+      { name: 'SWMS', percentage: calculatePercentage(metric.safeWorkMethodStatementActual || 0, metric.safeWorkMethodStatementTarget || 0) },
+      { name: 'Mock Drills', percentage: calculatePercentage(metric.emergencyMockDrillsActual || 0, metric.emergencyMockDrillsTarget || 0) },
+      { name: 'Internal Audit', percentage: calculatePercentage(metric.internalAuditActual || 0, metric.internalAuditTarget || 0) },
+      { name: 'Near Miss', percentage: calculatePercentage(metric.nearMissReportActual || 0, metric.nearMissReportTarget || 0) },
+      { name: 'First Aid', percentage: calculatePercentage(metric.firstAidInjuryActual || 0, metric.firstAidInjuryTarget || 0) },
+      { name: 'Medical Treat', percentage: calculatePercentage(metric.medicalTreatmentInjuryActual || 0, metric.medicalTreatmentInjuryTarget || 0) },
+      { name: 'Lost Time', percentage: calculatePercentage(metric.lostTimeInjuryActual || 0, metric.lostTimeInjuryTarget || 0) },
     ];
   };
 
