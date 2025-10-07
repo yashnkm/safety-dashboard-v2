@@ -1,6 +1,6 @@
 # Safety Dashboard V2 - Multi-Tenant Enterprise Edition
 
-Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters. (sunny)
+Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.
 
 ## 🚀 Tech Stack
 
