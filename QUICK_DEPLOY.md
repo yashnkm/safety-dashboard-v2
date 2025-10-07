@@ -103,39 +103,53 @@ Visit `https://your-app.vercel.app` 🎉
 
 ## 🔑 Create First Admin
 
+### Option A: Using Helper Script (Easiest)
+
+1. After backend is deployed, go to Render Shell
+2. Run the interactive script:
+   ```bash
+   npm run create-admin
+   ```
+3. Follow the prompts to create company and admin user
+4. Login with the credentials you just created!
+
+### Option B: Direct SQL (Advanced)
+
 1. Go to Supabase SQL Editor
-2. Run this (replace values):
+2. Generate password hash locally:
+   ```bash
+   cd backend
+   npm run generate-password admin123
+   ```
+3. Run this SQL (replace values):
+   ```sql
+   -- Create company
+   INSERT INTO "Company" ("id", "companyName", "companyCode", "isActive", "createdAt", "updatedAt")
+   VALUES (
+     gen_random_uuid(),
+     'My Company',
+     'COMP001',
+     true,
+     NOW(),
+     NOW()
+   ) RETURNING id;
 
-```sql
--- Create company
-INSERT INTO "Company" ("id", "companyName", "companyCode", "isActive", "createdAt", "updatedAt")
-VALUES (
-  gen_random_uuid(),
-  'My Company',
-  'COMP001',
-  true,
-  NOW(),
-  NOW()
-) RETURNING id;
-
--- Copy the ID from above, then create user
--- Password: "admin123" (change after first login!)
-INSERT INTO "User" ("id", "email", "passwordHash", "fullName", "role", "companyId", "accessLevel", "isActive", "createdAt", "updatedAt")
-VALUES (
-  gen_random_uuid(),
-  'admin@company.com',
-  '$2b$10$YourHashedPasswordHere',
-  'Admin User',
-  'SUPER_ADMIN',
-  '<company-id-from-above>',
-  'ALL_SITES',
-  true,
-  NOW(),
-  NOW()
-);
-```
-
-3. Login with `admin@company.com` / `admin123`
+   -- Create user (replace passwordHash with generated hash)
+   INSERT INTO "User" ("id", "email", "passwordHash", "fullName", "role", "companyId", "accessLevel", "isActive", "createdAt", "updatedAt")
+   VALUES (
+     gen_random_uuid(),
+     'admin@company.com',
+     '<paste-hash-here>',
+     'Admin User',
+     'SUPER_ADMIN',
+     '<company-id-from-above>',
+     'ALL_SITES',
+     true,
+     NOW(),
+     NOW()
+   );
+   ```
+4. Login with your credentials
 
 ---
 

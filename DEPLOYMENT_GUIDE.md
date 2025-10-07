@@ -162,7 +162,22 @@ Your app has 3 components that need to be deployed:
 
 After deployment, create your first admin user:
 
-1. **Option A: Direct Database**
+1. **Option A: Interactive Script (Recommended)**
+   - Go to Render dashboard → Your service → Shell tab
+   - Run:
+     ```bash
+     npm run create-admin
+     ```
+   - Follow the interactive prompts to create company and admin user
+   - Script will automatically hash password and create both records
+
+2. **Option B: Generate Hash + SQL**
+   - Generate password hash locally:
+     ```bash
+     cd backend
+     npm run generate-password YourSecurePassword123
+     ```
+   - Copy the hash output
    - Use Vercel Postgres dashboard or Supabase SQL Editor
    - Run:
      ```sql
@@ -171,11 +186,11 @@ After deployment, create your first admin user:
      VALUES ('Your Company', 'COMP001', true)
      RETURNING id;
 
-     -- Then create super admin (replace password hash and company id)
+     -- Then create super admin (replace hash and company id)
      INSERT INTO "User" ("email", "passwordHash", "fullName", "role", "companyId", "accessLevel", "isActive")
      VALUES (
        'admin@yourcompany.com',
-       '$2b$10$...',  -- Generate with: bcrypt.hash('your-password', 10)
+       '<paste-hash-from-generate-password>',
        'Super Admin',
        'SUPER_ADMIN',
        '<company-id-from-above>',
@@ -184,12 +199,12 @@ After deployment, create your first admin user:
      );
      ```
 
-2. **Option B: Use Prisma Studio**
+3. **Option C: Use Prisma Studio**
    ```bash
    cd backend
    npx prisma studio
    ```
-   - Manually create company and user
+   - Manually create company and user (requires password hash from Option B)
 
 ---
 
