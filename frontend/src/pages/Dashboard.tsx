@@ -38,7 +38,6 @@ import {
   Recycle,
   Zap,
   Droplets,
-  Flame,
   LeafyGreen,
   Heart,
   TestTube,
