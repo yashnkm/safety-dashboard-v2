@@ -15,7 +15,7 @@ export const MONTHS = [
   'December',
 ];
 
-// Define all 18 parameters with their column headers
+// Define all 32 parameters with their column headers (18 original + 14 new)
 export const PARAMETER_COLUMNS = [
   { key: 'month', label: 'Month' },
   // Operational Metrics (2)
@@ -60,6 +60,39 @@ export const PARAMETER_COLUMNS = [
   { key: 'medicalTreatmentInjuryActual', label: 'MedicalTreatmentInjuryActual' },
   { key: 'lostTimeInjuryTarget', label: 'LostTimeInjuryTarget' },
   { key: 'lostTimeInjuryActual', label: 'LostTimeInjuryActual' },
+  // NEW: Recordable Incidents (1)
+  { key: 'recordableIncidentsTarget', label: 'RecordableIncidentsTarget' },
+  { key: 'recordableIncidentsActual', label: 'RecordableIncidentsActual' },
+  // NEW: PPE Compliance (2)
+  { key: 'ppeComplianceRateTarget', label: 'PPEComplianceRateTarget' },
+  { key: 'ppeComplianceRateActual', label: 'PPEComplianceRateActual' },
+  { key: 'ppeObservationsTarget', label: 'PPEObservationsTarget' },
+  { key: 'ppeObservationsActual', label: 'PPEObservationsActual' },
+  // NEW: Training Management (3)
+  { key: 'workforceTrainedTarget', label: 'WorkforceTrainedTarget' },
+  { key: 'workforceTrainedActual', label: 'WorkforceTrainedActual' },
+  { key: 'upcomingTrainingsTarget', label: 'UpcomingTrainingsTarget' },
+  { key: 'upcomingTrainingsActual', label: 'UpcomingTrainingsActual' },
+  { key: 'overdueTrainingsTarget', label: 'OverdueTrainingsTarget' },
+  { key: 'overdueTrainingsActual', label: 'OverdueTrainingsActual' },
+  // NEW: Environment Metrics (6)
+  { key: 'wasteGeneratedTarget', label: 'WasteGeneratedTarget' },
+  { key: 'wasteGeneratedActual', label: 'WasteGeneratedActual' },
+  { key: 'wasteDisposedTarget', label: 'WasteDisposedTarget' },
+  { key: 'wasteDisposedActual', label: 'WasteDisposedActual' },
+  { key: 'energyConsumptionTarget', label: 'EnergyConsumptionTarget' },
+  { key: 'energyConsumptionActual', label: 'EnergyConsumptionActual' },
+  { key: 'waterConsumptionTarget', label: 'WaterConsumptionTarget' },
+  { key: 'waterConsumptionActual', label: 'WaterConsumptionActual' },
+  { key: 'spillsIncidentsTarget', label: 'SpillsIncidentsTarget' },
+  { key: 'spillsIncidentsActual', label: 'SpillsIncidentsActual' },
+  { key: 'environmentalIncidentsTarget', label: 'EnvironmentalIncidentsTarget' },
+  { key: 'environmentalIncidentsActual', label: 'EnvironmentalIncidentsActual' },
+  // NEW: Health & Hygiene (2)
+  { key: 'healthCheckupComplianceTarget', label: 'HealthCheckupComplianceTarget' },
+  { key: 'healthCheckupComplianceActual', label: 'HealthCheckupComplianceActual' },
+  { key: 'waterQualityTestTarget', label: 'WaterQualityTestTarget' },
+  { key: 'waterQualityTestActual', label: 'WaterQualityTestActual' },
 ];
 
 /**
@@ -123,7 +156,14 @@ export function parseExcelFile(file: File): Promise<any[]> {
 
           PARAMETER_COLUMNS.forEach(col => {
             // Try to find the value with case-insensitive matching
-            const value = row[col.label] || row[col.label.toLowerCase()] || row[col.key];
+            // Use ?? (nullish coalescing) to preserve 0 values
+            let value = row[col.label];
+            if (value === undefined || value === null) {
+              value = row[col.label.toLowerCase()];
+            }
+            if (value === undefined || value === null) {
+              value = row[col.key];
+            }
             mappedRow[col.key] = value;
           });
 

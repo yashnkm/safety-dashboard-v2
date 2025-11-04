@@ -191,6 +191,67 @@ model SafetyMetrics {
   lostTimeInjuryActual         Int @default(0) @map("lost_time_injury_actual")
   lostTimeInjuryScore          Decimal? @map("lost_time_injury_score") @db.Decimal(5, 2)
 
+  // NEW: Recordable Incidents
+  recordableIncidentsTarget    Int @default(0) @map("recordable_incidents_target")
+  recordableIncidentsActual    Int @default(0) @map("recordable_incidents_actual")
+  recordableIncidentsScore     Decimal? @map("recordable_incidents_score") @db.Decimal(5, 2)
+
+  // NEW: PPE Compliance
+  ppeComplianceRateTarget      Decimal @default(100) @map("ppe_compliance_rate_target") @db.Decimal(5, 2)
+  ppeComplianceRateActual      Decimal @default(0) @map("ppe_compliance_rate_actual") @db.Decimal(5, 2)
+  ppeComplianceRateScore       Decimal? @map("ppe_compliance_rate_score") @db.Decimal(5, 2)
+
+  ppeObservationsTarget        Int @default(0) @map("ppe_observations_target")
+  ppeObservationsActual        Int @default(0) @map("ppe_observations_actual")
+  ppeObservationsScore         Decimal? @map("ppe_observations_score") @db.Decimal(5, 2)
+
+  // NEW: Workforce Training
+  workforceTrainedTarget       Decimal @default(100) @map("workforce_trained_target") @db.Decimal(5, 2)
+  workforceTrainedActual       Decimal @default(0) @map("workforce_trained_actual") @db.Decimal(5, 2)
+  workforceTrainedScore        Decimal? @map("workforce_trained_score") @db.Decimal(5, 2)
+
+  upcomingTrainingsTarget      Int @default(0) @map("upcoming_trainings_target")
+  upcomingTrainingsActual      Int @default(0) @map("upcoming_trainings_actual")
+  upcomingTrainingsScore       Decimal? @map("upcoming_trainings_score") @db.Decimal(5, 2)
+
+  overdueTrainingsTarget       Int @default(0) @map("overdue_trainings_target")
+  overdueTrainingsActual       Int @default(0) @map("overdue_trainings_actual")
+  overdueTrainingsScore        Decimal? @map("overdue_trainings_score") @db.Decimal(5, 2)
+
+  // NEW: Environment Metrics
+  wasteGeneratedTarget         Decimal @default(0) @map("waste_generated_target") @db.Decimal(10, 2)
+  wasteGeneratedActual         Decimal @default(0) @map("waste_generated_actual") @db.Decimal(10, 2)
+  wasteGeneratedScore          Decimal? @map("waste_generated_score") @db.Decimal(5, 2)
+
+  wasteDisposedTarget          Decimal @default(0) @map("waste_disposed_target") @db.Decimal(10, 2)
+  wasteDisposedActual          Decimal @default(0) @map("waste_disposed_actual") @db.Decimal(10, 2)
+  wasteDisposedScore           Decimal? @map("waste_disposed_score") @db.Decimal(5, 2)
+
+  energyConsumptionTarget      Decimal @default(0) @map("energy_consumption_target") @db.Decimal(10, 2)
+  energyConsumptionActual      Decimal @default(0) @map("energy_consumption_actual") @db.Decimal(10, 2)
+  energyConsumptionScore       Decimal? @map("energy_consumption_score") @db.Decimal(5, 2)
+
+  waterConsumptionTarget       Decimal @default(0) @map("water_consumption_target") @db.Decimal(10, 2)
+  waterConsumptionActual       Decimal @default(0) @map("water_consumption_actual") @db.Decimal(10, 2)
+  waterConsumptionScore        Decimal? @map("water_consumption_score") @db.Decimal(5, 2)
+
+  spillsIncidentsTarget        Int @default(0) @map("spills_incidents_target")
+  spillsIncidentsActual        Int @default(0) @map("spills_incidents_actual")
+  spillsIncidentsScore         Decimal? @map("spills_incidents_score") @db.Decimal(5, 2)
+
+  environmentalIncidentsTarget Int @default(0) @map("environmental_incidents_target")
+  environmentalIncidentsActual Int @default(0) @map("environmental_incidents_actual")
+  environmentalIncidentsScore  Decimal? @map("environmental_incidents_score") @db.Decimal(5, 2)
+
+  // NEW: Health & Hygiene
+  healthCheckupComplianceTarget Decimal @default(100) @map("health_checkup_compliance_target") @db.Decimal(5, 2)
+  healthCheckupComplianceActual Decimal @default(0) @map("health_checkup_compliance_actual") @db.Decimal(5, 2)
+  healthCheckupComplianceScore  Decimal? @map("health_checkup_compliance_score") @db.Decimal(5, 2)
+
+  waterQualityTestTarget       Int @default(0) @map("water_quality_test_target")
+  waterQualityTestActual       Int @default(0) @map("water_quality_test_actual")
+  waterQualityTestScore        Decimal? @map("water_quality_test_score") @db.Decimal(5, 2)
+
   // Calculated Fields
   totalScore      Decimal @default(0) @map("total_score") @db.Decimal(5, 2)
   maxScore        Decimal @default(100) @map("max_score") @db.Decimal(5, 2)
@@ -207,6 +268,9 @@ model SafetyMetrics {
   preparednessScore   Decimal @default(0) @map("preparedness_score") @db.Decimal(5, 2)
   auditScore          Decimal @default(0) @map("audit_score") @db.Decimal(5, 2)
   incidentScore       Decimal @default(0) @map("incident_score") @db.Decimal(5, 2)
+  ppeComplianceScore  Decimal @default(0) @map("ppe_compliance_score") @db.Decimal(5, 2)
+  environmentScore    Decimal @default(0) @map("environment_score") @db.Decimal(5, 2)
+  healthHygieneScore  Decimal @default(0) @map("health_hygiene_score") @db.Decimal(5, 2)
 
   // Metadata
   createdBy String?   @map("created_by")

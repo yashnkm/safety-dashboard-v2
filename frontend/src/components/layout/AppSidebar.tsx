@@ -66,11 +66,14 @@ const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
 const categories = [
   { id: 'operational', label: 'Operational', count: 2 },
-  { id: 'training', label: 'Training', count: 3 },
+  { id: 'training', label: 'Training', count: 6 },
   { id: 'compliance', label: 'Compliance', count: 4 },
   { id: 'documentation', label: 'Documentation', count: 2 },
   { id: 'emergency', label: 'Emergency & Audit', count: 2 },
-  { id: 'incidents', label: 'Incidents', count: 4 },
+  { id: 'incidents', label: 'Incidents', count: 5 },
+  { id: 'ppe', label: 'PPE Compliance', count: 2 },
+  { id: 'environment', label: 'Environment Metrics', count: 6 },
+  { id: 'health', label: 'Health & Hygiene', count: 2 },
 ];
 
 export default function AppSidebar({

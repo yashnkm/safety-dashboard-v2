@@ -127,7 +127,7 @@ export default function ExcelImport() {
               Step 1: Download Template
             </CardTitle>
             <CardDescription>
-              Download the Excel template with all 18 safety parameters
+              Download the Excel template with all 32 safety parameters
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -157,7 +157,7 @@ export default function ExcelImport() {
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>First column: Month (January to December)</li>
                 <li>Remaining columns: Target and Actual values for each parameter</li>
-                <li>Total 37 columns (1 Month + 18 parameters × 2)</li>
+                <li>Total 65 columns (1 Month + 32 parameters × 2)</li>
                 <li>Fill in the data and save the file</li>
               </ul>
             </div>
@@ -290,7 +290,7 @@ export default function ExcelImport() {
                         <td className="px-4 py-2">{row.manDaysTarget}/{row.manDaysActual}</td>
                         <td className="px-4 py-2">{row.safeWorkHoursTarget}/{row.safeWorkHoursActual}</td>
                         <td className="px-4 py-2">{row.safetyInductionTarget}/{row.safetyInductionActual}</td>
-                        <td className="px-4 py-2 text-gray-400">+15 more</td>
+                        <td className="px-4 py-2 text-gray-400">+29 more</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,0 +1,63 @@
+# Safety Dashboard - Brand Kit & Requirements
+
+## 18 Safety Parameters
+
+### Category 1: Operational Metrics (2)
+1. Man Days (Target/Actual)
+2. Safe Work Hours Cumulative (Target/Actual)
+
+### Category 2: Training & Induction (3)
+3. Safety Induction (Target/Actual)
+4. Tool Box Talk (Target/Actual)
+5. Job Specific Training (Target/Actual)
+
+### Category 3: Inspection & Compliance (4)
+6. Formal Safety Inspection Done (Target/Actual)
+7. Non-Compliance Raised (Target/Actual)
+8. Non-Compliance Close (Target/Actual)
+9. Safety Observation Raised (Target/Actual)
+10. Safety Observation Close (Target/Actual)
+
+### Category 4: Documentation (2)
+11. Work Permit Issued (Target/Actual)
+12. Safe Work Method Statement (Target/Actual)
+
+### Category 5: Emergency & Audit (2)
+13. Emergency Preparedness Mock Drills (Target/Actual)
+14. Internal Audit (Target/Actual)
+
+### Category 6: Incident Reports (4)
+15. Near Miss Report (Target/Actual)
+16. First Aid Injury (Target/Actual)
+17. Medical Treatment Injury (Target/Actual)
+18. Lost Time Injury (Target/Actual)
+
+## KPI Metrics
+- Cumulative Score: Overall achievement score based on Target vs Actual across all 18 parameters
+- Individual Parameter Scores
+- Category-wise scores
+
+## Features Required
+- Month/Year filtering
+- Site-wise filtering
+- Dashboard view with KPI cards
+- Detailed view for each category
+- Charts and visualizations
+- Data entry interface
+
+
+Ivory
+#ede7dc
+
+Sand Dollar
+#dcd2cc
+
+Dusty Rose
+#ccafa5
+
+Gray
+#bdc3cb
+
+fonts 
+open sans as primary 
+montserrat as secondary

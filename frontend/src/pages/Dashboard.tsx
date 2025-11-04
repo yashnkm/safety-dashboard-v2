@@ -30,9 +30,21 @@ import {
   Stethoscope,
   UserX,
   Upload,
+  HardHat,
+  Glasses,
+  Calendar as CalendarIcon,
+  AlertOctagon,
+  Trash2,
+  Recycle,
+  Zap,
+  Droplets,
+  Flame,
+  LeafyGreen,
+  Heart,
+  TestTube,
 } from 'lucide-react';
 
-type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents';
+type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -54,6 +66,9 @@ export default function Dashboard() {
     documentation: true,
     emergency: true,
     incidents: true,
+    ppe: true,
+    environment: true,
+    health: true,
   });
 
   // Check for lastImport from localStorage (after Excel import)
@@ -132,6 +147,9 @@ export default function Dashboard() {
         documentation: [],
         emergency: [],
         incidents: [],
+        ppe: [],
+        environment: [],
+        health: [],
       };
     }
 
@@ -181,6 +199,31 @@ export default function Dashboard() {
           actual: metric.jobSpecificTrainingActual || 0,
           score: Number(metric.jobSpecificTrainingScore) * 10 || 0,
           unit: 'sessions'
+        },
+        {
+          title: 'Workforce Trained %',
+          icon: Users,
+          target: metric.workforceTrainedTarget || 0,
+          actual: metric.workforceTrainedActual || 0,
+          score: Number(metric.workforceTrainedScore) * 10 || 0,
+          unit: '%'
+        },
+        {
+          title: 'Upcoming Trainings',
+          icon: CalendarIcon,
+          target: metric.upcomingTrainingsTarget || 0,
+          actual: metric.upcomingTrainingsActual || 0,
+          score: Number(metric.upcomingTrainingsScore) * 10 || 0,
+          unit: 'sessions'
+        },
+        {
+          title: 'Overdue Trainings',
+          icon: AlertOctagon,
+          target: metric.overdueTrainingsTarget || 0,
+          actual: metric.overdueTrainingsActual || 0,
+          score: Number(metric.overdueTrainingsScore) * 10 || 0,
+          unit: 'sessions',
+          isIncident: true
         },
       ],
       compliance: [
@@ -298,6 +341,106 @@ export default function Dashboard() {
           unit: 'injuries',
           isIncident: true
         },
+        {
+          title: 'Recordable Incidents',
+          icon: AlertTriangle,
+          target: metric.recordableIncidentsTarget || 0,
+          actual: metric.recordableIncidentsActual || 0,
+          score: Number(metric.recordableIncidentsScore) * 10 || 0,
+          unit: 'incidents',
+          isIncident: true
+        },
+      ],
+      ppe: [
+        {
+          title: 'PPE Compliance Rate',
+          icon: HardHat,
+          target: metric.ppeComplianceRateTarget || 0,
+          actual: metric.ppeComplianceRateActual || 0,
+          score: Number(metric.ppeComplianceRateScore) * 10 || 0,
+          unit: '%'
+        },
+        {
+          title: 'PPE Observations',
+          icon: Glasses,
+          target: metric.ppeObservationsTarget || 0,
+          actual: metric.ppeObservationsActual || 0,
+          score: Number(metric.ppeObservationsScore) * 10 || 0,
+          unit: 'observations'
+        },
+      ],
+      environment: [
+        {
+          title: 'Waste Generated',
+          icon: Trash2,
+          target: metric.wasteGeneratedTarget || 0,
+          actual: metric.wasteGeneratedActual || 0,
+          score: Number(metric.wasteGeneratedScore) * 10 || 0,
+          unit: 'kg',
+          lowerIsBetter: true
+        },
+        {
+          title: 'Waste Disposed',
+          icon: Recycle,
+          target: metric.wasteDisposedTarget || 0,
+          actual: metric.wasteDisposedActual || 0,
+          score: Number(metric.wasteDisposedScore) * 10 || 0,
+          unit: 'kg'
+        },
+        {
+          title: 'Energy Consumption',
+          icon: Zap,
+          target: metric.energyConsumptionTarget || 0,
+          actual: metric.energyConsumptionActual || 0,
+          score: Number(metric.energyConsumptionScore) * 10 || 0,
+          unit: 'kW',
+          lowerIsBetter: true
+        },
+        {
+          title: 'Water Consumption',
+          icon: Droplets,
+          target: metric.waterConsumptionTarget || 0,
+          actual: metric.waterConsumptionActual || 0,
+          score: Number(metric.waterConsumptionScore) * 10 || 0,
+          unit: 'ltr',
+          lowerIsBetter: true
+        },
+        {
+          title: 'Spills Incidents',
+          icon: Droplets,
+          target: metric.spillsIncidentsTarget || 0,
+          actual: metric.spillsIncidentsActual || 0,
+          score: Number(metric.spillsIncidentsScore) * 10 || 0,
+          unit: 'incidents',
+          isIncident: true
+        },
+        {
+          title: 'Environmental Incidents',
+          icon: LeafyGreen,
+          target: metric.environmentalIncidentsTarget || 0,
+          actual: metric.environmentalIncidentsActual || 0,
+          score: Number(metric.environmentalIncidentsScore) * 10 || 0,
+          unit: 'incidents',
+          isIncident: true
+        },
+      ],
+      health: [
+        {
+          title: 'Health Checkup Compliance',
+          icon: Heart,
+          target: metric.healthCheckupComplianceTarget || 0,
+          actual: metric.healthCheckupComplianceActual || 0,
+          score: Number(metric.healthCheckupComplianceScore) * 10 || 0,
+          unit: '%'
+        },
+        {
+          title: 'Water Quality Test',
+          icon: TestTube,
+          target: metric.waterQualityTestTarget || 0,
+          actual: metric.waterQualityTestActual || 0,
+          score: Number(metric.waterQualityTestScore) * 10 || 0,
+          unit: 'tests'
+        },
       ],
     };
   };
@@ -315,8 +458,9 @@ export default function Dashboard() {
     let close = 0;
     let below = 0;
 
-    // List all 18 parameters with their scores (0-10 scale in DB)
+    // List all 32 parameters with their scores (0-10 scale in DB)
     const parameters = [
+      // Original 18 parameters
       { score: Number(metric.manDaysScore) || 0, target: metric.manDaysTarget || 0, actual: metric.manDaysActual || 0 },
       { score: Number(metric.safeWorkHoursScore) || 0, target: metric.safeWorkHoursTarget || 0, actual: metric.safeWorkHoursActual || 0 },
       { score: Number(metric.safetyInductionScore) || 0, target: metric.safetyInductionTarget || 0, actual: metric.safetyInductionActual || 0 },
@@ -335,6 +479,21 @@ export default function Dashboard() {
       { score: Number(metric.firstAidInjuryScore) || 0, target: metric.firstAidInjuryTarget || 0, actual: metric.firstAidInjuryActual || 0 },
       { score: Number(metric.medicalTreatmentInjuryScore) || 0, target: metric.medicalTreatmentInjuryTarget || 0, actual: metric.medicalTreatmentInjuryActual || 0 },
       { score: Number(metric.lostTimeInjuryScore) || 0, target: metric.lostTimeInjuryTarget || 0, actual: metric.lostTimeInjuryActual || 0 },
+      // New 14 parameters
+      { score: Number(metric.recordableIncidentsScore) || 0, target: metric.recordableIncidentsTarget || 0, actual: metric.recordableIncidentsActual || 0 },
+      { score: Number(metric.ppeComplianceRateScore) || 0, target: metric.ppeComplianceRateTarget || 0, actual: metric.ppeComplianceRateActual || 0 },
+      { score: Number(metric.ppeObservationsScore) || 0, target: metric.ppeObservationsTarget || 0, actual: metric.ppeObservationsActual || 0 },
+      { score: Number(metric.workforceTrainedScore) || 0, target: metric.workforceTrainedTarget || 0, actual: metric.workforceTrainedActual || 0 },
+      { score: Number(metric.upcomingTrainingsScore) || 0, target: metric.upcomingTrainingsTarget || 0, actual: metric.upcomingTrainingsActual || 0 },
+      { score: Number(metric.overdueTrainingsScore) || 0, target: metric.overdueTrainingsTarget || 0, actual: metric.overdueTrainingsActual || 0 },
+      { score: Number(metric.wasteGeneratedScore) || 0, target: metric.wasteGeneratedTarget || 0, actual: metric.wasteGeneratedActual || 0 },
+      { score: Number(metric.wasteDisposedScore) || 0, target: metric.wasteDisposedTarget || 0, actual: metric.wasteDisposedActual || 0 },
+      { score: Number(metric.energyConsumptionScore) || 0, target: metric.energyConsumptionTarget || 0, actual: metric.energyConsumptionActual || 0 },
+      { score: Number(metric.waterConsumptionScore) || 0, target: metric.waterConsumptionTarget || 0, actual: metric.waterConsumptionActual || 0 },
+      { score: Number(metric.spillsIncidentsScore) || 0, target: metric.spillsIncidentsTarget || 0, actual: metric.spillsIncidentsActual || 0 },
+      { score: Number(metric.environmentalIncidentsScore) || 0, target: metric.environmentalIncidentsTarget || 0, actual: metric.environmentalIncidentsActual || 0 },
+      { score: Number(metric.healthCheckupComplianceScore) || 0, target: metric.healthCheckupComplianceTarget || 0, actual: metric.healthCheckupComplianceActual || 0 },
+      { score: Number(metric.waterQualityTestScore) || 0, target: metric.waterQualityTestTarget || 0, actual: metric.waterQualityTestActual || 0 },
     ];
 
     // Categorize each parameter based on score
@@ -354,23 +513,30 @@ export default function Dashboard() {
     return { targetMet, close, below };
   };
 
-  // Prepare data for overall bar chart (all 18 parameters) - with achievement percentages
+  // Prepare data for overall bar chart (all 32 parameters) - with achievement percentages
   const prepareBarChartData = () => {
     if (!metricsData || metricsData.length === 0) return [];
 
     const metric = metricsData[0];
 
     // Helper function to calculate percentage
-    const calcPercentage = (actual: number, target: number, isIncident: boolean = false) => {
+    const calcPercentage = (actual: number, target: number, isIncident: boolean = false, lowerIsBetter: boolean = false) => {
       if (isIncident) {
         // For incidents: 0 actual = 100%, any incident = 0%
         return actual === 0 ? 100 : 0;
+      }
+      if (lowerIsBetter) {
+        // For lower is better: <= target = 100%, > target = (target/actual) * 100
+        if (target === 0) return 0;
+        if (actual <= target) return 100;
+        return (target / actual) * 100;
       }
       if (target === 0) return 0;
       return Math.min((actual / target) * 100, 100);
     };
 
     return [
+      // Original 18 parameters
       { name: 'Man Days', percentage: calcPercentage(metric.manDaysActual || 0, metric.manDaysTarget || 0) },
       { name: 'Safe Work Hours', percentage: calcPercentage(metric.safeWorkHoursActual || 0, metric.safeWorkHoursTarget || 0) },
       { name: 'Safety Induction', percentage: calcPercentage(metric.safetyInductionActual || 0, metric.safetyInductionTarget || 0) },
@@ -389,6 +555,21 @@ export default function Dashboard() {
       { name: 'First Aid', percentage: calcPercentage(metric.firstAidInjuryActual || 0, metric.firstAidInjuryTarget || 0, true) },
       { name: 'Med Treatment', percentage: calcPercentage(metric.medicalTreatmentInjuryActual || 0, metric.medicalTreatmentInjuryTarget || 0, true) },
       { name: 'Lost Time Injury', percentage: calcPercentage(metric.lostTimeInjuryActual || 0, metric.lostTimeInjuryTarget || 0, true) },
+      // New 14 parameters
+      { name: 'Recordable Incidents', percentage: calcPercentage(metric.recordableIncidentsActual || 0, metric.recordableIncidentsTarget || 0, true) },
+      { name: 'PPE Compliance %', percentage: calcPercentage(metric.ppeComplianceRateActual || 0, metric.ppeComplianceRateTarget || 0) },
+      { name: 'PPE Observations', percentage: calcPercentage(metric.ppeObservationsActual || 0, metric.ppeObservationsTarget || 0) },
+      { name: 'Workforce Trained %', percentage: calcPercentage(metric.workforceTrainedActual || 0, metric.workforceTrainedTarget || 0) },
+      { name: 'Upcoming Trainings', percentage: calcPercentage(metric.upcomingTrainingsActual || 0, metric.upcomingTrainingsTarget || 0) },
+      { name: 'Overdue Trainings', percentage: calcPercentage(metric.overdueTrainingsActual || 0, metric.overdueTrainingsTarget || 0, true) },
+      { name: 'Waste Generated', percentage: calcPercentage(metric.wasteGeneratedActual || 0, metric.wasteGeneratedTarget || 0, false, true) },
+      { name: 'Waste Disposed', percentage: calcPercentage(metric.wasteDisposedActual || 0, metric.wasteDisposedTarget || 0) },
+      { name: 'Energy Consumption', percentage: calcPercentage(metric.energyConsumptionActual || 0, metric.energyConsumptionTarget || 0, false, true) },
+      { name: 'Water Consumption', percentage: calcPercentage(metric.waterConsumptionActual || 0, metric.waterConsumptionTarget || 0, false, true) },
+      { name: 'Spills Incidents', percentage: calcPercentage(metric.spillsIncidentsActual || 0, metric.spillsIncidentsTarget || 0, true) },
+      { name: 'Environmental Incidents', percentage: calcPercentage(metric.environmentalIncidentsActual || 0, metric.environmentalIncidentsTarget || 0, true) },
+      { name: 'Health Checkup %', percentage: calcPercentage(metric.healthCheckupComplianceActual || 0, metric.healthCheckupComplianceTarget || 0) },
+      { name: 'Water Quality Tests', percentage: calcPercentage(metric.waterQualityTestActual || 0, metric.waterQualityTestTarget || 0) },
     ];
   };
 
@@ -593,6 +774,51 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.incidents.map((param, idx) => (
+                <ParameterCard key={idx} {...param} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* PPE Compliance */}
+        {!metricsLoading && enabledCategories.ppe && displayData.ppe.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-1 w-8 bg-yellow-500 rounded" />
+              <h2 className="text-xl font-bold">PPE Compliance</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayData.ppe.map((param, idx) => (
+                <ParameterCard key={idx} {...param} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Environment Metrics */}
+        {!metricsLoading && enabledCategories.environment && displayData.environment.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-1 w-8 bg-green-500 rounded" />
+              <h2 className="text-xl font-bold">Environment Metrics</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayData.environment.map((param, idx) => (
+                <ParameterCard key={idx} {...param} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Health & Hygiene */}
+        {!metricsLoading && enabledCategories.health && displayData.health.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-1 w-8 bg-pink-500 rounded" />
+              <h2 className="text-xl font-bold">Health & Hygiene</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayData.health.map((param, idx) => (
                 <ParameterCard key={idx} {...param} />
               ))}
             </div>

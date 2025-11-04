@@ -1,0 +1,14 @@
+Month,Fatality,Unnamed: 2,LTI,Unnamed: 4,Property Damage,Unnamed: 6,Penalty / Memo from Authority,Unnamed: 8,EHS Training,Unnamed: 10,Inspection,Unnamed: 12,Mock Drill,Unnamed: 14,Walkthrough,Unnamed: 16,HSE Committee Meeting,Unnamed: 18,HSE Induction,Unnamed: 20,Work Permit,Unnamed: 22
+,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual,Target,Actual
+January,0,0,0,0,0,0,0,0,10,8,10,9,1,0,2,1,1,1,100,99,100,60
+February,0,0,0,0,0,1,0,1,10,9,10,8,1,0,2,2,1,0,100,64,100,95
+March,0,0,0,1,0,0,0,0,10,10,10,10,1,1,2,2,1,0,100,65,100,60
+April,0,1,0,1,0,1,0,1,10,9,10,8,1,1,2,1,1,0,100,55,100,53
+May,0,0,0,1,0,1,0,0,10,8,10,10,1,0,2,2,1,0,100,97,100,68
+June,0,0,0,0,0,1,0,0,10,10,10,10,1,0,2,1,1,1,100,62,100,53
+July,0,1,0,1,0,1,0,1,10,10,10,9,1,0,2,2,1,0,100,63,100,71
+August,0,1,0,1,0,0,0,0,10,9,10,9,1,1,2,1,1,0,100,73,100,52
+September,0,0,0,0,0,0,0,1,10,10,10,8,1,0,2,1,1,0,100,64,100,61
+October,0,0,0,1,0,0,0,0,10,9,10,9,1,1,2,2,1,1,100,53,100,98
+November,0,1,0,0,0,0,0,1,10,8,10,9,1,0,2,1,1,0,100,74,100,88
+December,0,1,0,1,0,0,0,0,10,10,10,8,1,1,2,1,1,0,100,84,100,90

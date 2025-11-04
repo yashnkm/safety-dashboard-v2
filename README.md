@@ -1,6 +1,23 @@
 # Safety Dashboard V2 - Multi-Tenant Enterprise Edition
 
-Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.
+> Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.
+
+[![Tech Stack](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue)](https://www.postgresql.org/)
+
+---
+
+## 📋 Quick Navigation
+
+- **[Getting Started](docs/GETTING_STARTED.md)** - Setup instructions
+- **[Quick Start Guide](docs/QUICK_START.md)** - Fast setup
+- **[Deployment Guide](docs/deployment/)** - Production deployment
+- **[API Documentation](#api-endpoints)** - Backend API reference
+- **[Development Docs](docs/development/)** - Development notes
+
+---
 
 ## 🚀 Tech Stack
 
@@ -23,94 +40,73 @@ Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authent
 - **Bcrypt** (password hashing)
 - **Helmet** + **CORS** (security)
 
+---
+
 ## 📁 Project Structure
 
 ```
 safety-dashboard-v2/
-├── frontend/                    # React TypeScript frontend
+├── backend/                 # Express TypeScript backend
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── ui/             # Shadcn UI components
-│   │   │   ├── layout/         # Layout components
-│   │   │   ├── auth/           # Auth components
-│   │   │   ├── dashboard/      # Dashboard components
-│   │   │   └── ...
-│   │   ├── pages/              # Route pages
-│   │   ├── services/           # API services
-│   │   ├── store/              # Zustand stores
-│   │   ├── hooks/              # Custom hooks
-│   │   ├── types/              # TypeScript types
-│   │   └── lib/                # Utilities
+│   │   ├── config/         # Configuration
+│   │   ├── controllers/    # Route controllers
+│   │   ├── middleware/     # Auth, error handling
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic
+│   │   └── index.ts        # Server entry
+│   ├── prisma/
+│   │   ├── schema.prisma   # Database schema
+│   │   ├── migrations/     # DB migrations
+│   │   └── seed.ts         # Seed data
+│   └── scripts/            # Helper scripts
+│
+├── frontend/                # React TypeScript frontend
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── pages/          # Route pages
+│   │   ├── services/       # API services
+│   │   ├── store/          # State management
+│   │   └── types/          # TypeScript types
 │   └── package.json
 │
-└── backend/                     # Express TypeScript backend
-    ├── src/
-    │   ├── config/             # Configuration
-    │   ├── middleware/         # Express middleware
-    │   ├── controllers/        # Route controllers
-    │   ├── services/           # Business logic
-    │   ├── routes/             # API routes
-    │   ├── models/             # TypeScript types
-    │   └── utils/              # Utilities
-    ├── prisma/
-    │   ├── schema.prisma       # Database schema
-    │   ├── migrations/         # Database migrations
-    │   └── seed.ts             # Seed data
-    └── package.json
+├── docs/                    # Documentation
+│   ├── deployment/         # Deployment guides
+│   ├── development/        # Dev progress
+│   └── implementation/     # Feature docs
+│
+├── data/                    # Data files
+│   ├── reference/          # CSV reference data
+│   ├── samples/            # Sample Excel files
+│   └── secret              # Database credentials
+│
+└── scripts/                 # Utility scripts
 ```
 
-## 🗄️ Database Schema
+---
 
-### Core Models:
-- **Company** - Multi-tenant company data
-- **Site** - Multiple sites per company
-- **User** - Role-based users (SUPER_ADMIN, ADMIN, MANAGER, VIEWER)
-- **UserSiteAccess** - Site-specific access control
-- **SafetyMetrics** - 18 safety parameters (Target/Actual/Score)
-- **CompanySettings** - Configurable weights & thresholds
-- **AuditLog** - Audit trail for all changes
-- **PasswordResetToken** - Password reset functionality
+## 🔑 Login Credentials
 
-### 18 Safety Parameters:
-1. Man Days (Target, Actual, Score)
-2. Safe Work Hours (Target, Actual, Score)
-3. Safety Induction (Target, Actual, Score)
-4. Toolbox Talk (Target, Actual, Score)
-5. Job Specific Training (Target, Actual, Score)
-6. Formal Safety Inspection (Target, Actual, Score)
-7. Non-Compliance Raised (Target, Actual, Score)
-8. Non-Compliance Close (Target, Actual, Score)
-9. Safety Observation Raised (Target, Actual, Score)
-10. Safety Observation Close (Target, Actual, Score)
-11. Work Permit Issued (Target, Actual, Score)
-12. Safe Work Method Statement (Target, Actual, Score)
-13. Emergency Mock Drills (Target, Actual, Score)
-14. Internal Audit (Target, Actual, Score)
-15. Near Miss Report (Target, Actual, Score)
-16. First Aid Injury (Target, Actual, Score)
-17. Medical Treatment Injury (Target, Actual, Score)
-18. Lost Time Injury (Target, Actual, Score)
+Pre-seeded user accounts for development:
 
-## 🛠️ Setup Instructions
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| **Super Admin** | admin@abc.com | Admin@123 | Full Access |
+| **Manager** | manager@abc.com | Manager@123 | Site-Specific |
+| **Viewer** | viewer@abc.com | Viewer@123 | Read-Only |
+
+**Company**: ABC Manufacturing Corp
+**Sites**: Manufacturing Plant 1 (Mumbai), Plant 2 (Delhi), HQ (Bangalore)
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+
 - PostgreSQL 15+
 - npm or yarn
 
-### 1. Database Setup
-
-```bash
-# Create PostgreSQL database
-createdb safety_dashboard_v2
-
-# Or using psql
-psql -U postgres
-CREATE DATABASE safety_dashboard_v2;
-\q
-```
-
-### 2. Backend Setup
+### 1. Backend Setup
 
 ```bash
 cd backend
@@ -118,29 +114,23 @@ cd backend
 # Install dependencies
 npm install
 
-# Create .env file
+# Setup environment
 cp .env.example .env
+# Edit .env with your database credentials
 
-# Update .env with your database credentials
-DATABASE_URL="postgresql://username:password@localhost:5432/safety_dashboard_v2?schema=public"
-JWT_SECRET="your_secure_random_string"
-
-# Generate Prisma Client
-npm run prisma:generate
-
-# Run database migrations
+# Run migrations
 npm run prisma:migrate
 
-# (Optional) Seed database with sample data
+# Seed database (optional)
 npm run prisma:seed
 
-# Start development server
+# Start server
 npm run dev
 ```
 
-Backend will run on: http://localhost:5000
+Backend runs on: **http://localhost:5000**
 
-### 3. Frontend Setup
+### 2. Frontend Setup
 
 ```bash
 cd frontend
@@ -148,166 +138,293 @@ cd frontend
 # Install dependencies
 npm install
 
-# Create .env file (optional)
+# Create .env (optional)
 echo "VITE_API_URL=http://localhost:5000/api" > .env
 
-# Start development server
+# Start dev server
 npm run dev
 ```
 
-Frontend will run on: http://localhost:5173
+Frontend runs on: **http://localhost:5173**
 
-## 🔑 Authentication & Authorization
+### 3. Access Application
 
-### User Roles:
-- **SUPER_ADMIN** - Full system access, manage companies
-- **ADMIN** - Company-wide access, manage users & sites
-- **MANAGER** - Site-level access (configurable)
-- **VIEWER** - Read-only access
+1. Open browser: http://localhost:5173
+2. Login with credentials above
+3. Explore the dashboard
 
-### Access Levels:
-- **ALL_SITES** - Access to all company sites
-- **SPECIFIC_SITES** - Access to assigned sites only
+---
 
-## 📊 Key Features
+## 🗄️ Database Configuration
 
-### ✅ Implemented:
-- [x] TypeScript frontend & backend
-- [x] Tailwind CSS + Shadcn UI setup
-- [x] Prisma ORM with multi-tenant schema
-- [x] 18 safety parameters model
-- [x] **Role-based access control (RBAC)**
-- [x] **Site-level access restrictions**
-- [x] **JWT authentication system**
-- [x] **Login page with secure auth**
-- [x] **Interactive dashboard with charts**
-- [x] **Gauge charts, bar charts, trend analysis**
-- [x] **Excel import functionality**
-- [x] **Multi-tenant data isolation**
-- [x] **Admin panel for user/site management**
-- [x] **Company-scoped site assignments**
-- [x] **Audit logging system**
-- [x] **Company settings with configurable weights**
-- [x] **Monthly trend visualization**
+### Local PostgreSQL
 
-### 🚧 Future Enhancements:
+Update `backend/.env`:
+
+```env
+DATABASE_URL="postgresql://postgres:root@localhost:5432/safety_dashboard_v2?schema=public"
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=your_secure_secret_key
+JWT_EXPIRY=7d
+CORS_ORIGIN=http://localhost:5173
+```
+
+### Database Schema (8 Models)
+
+1. **Company** - Multi-tenant company data
+2. **Site** - Multiple sites per company
+3. **User** - Role-based access (SUPER_ADMIN, ADMIN, MANAGER, VIEWER)
+4. **UserSiteAccess** - Site-specific permissions
+5. **SafetyMetrics** - 18 safety parameters
+6. **CompanySettings** - Configurable weights
+7. **AuditLog** - Audit trail
+8. **PasswordResetToken** - Password reset
+
+---
+
+## 📊 18 Safety Parameters
+
+### Categories
+
+**Operational (2)**
+- Man Days, Safe Work Hours
+
+**Training (3)**
+- Safety Induction, Toolbox Talk, Job Specific Training
+
+**Inspection & Compliance (6)**
+- Formal Safety Inspection, Non-Compliance Raised/Close, Safety Observation Raised/Close, Work Permit, Safe Work Method Statement
+
+**Preparedness & Audit (2)**
+- Emergency Mock Drills, Internal Audit
+
+**Incidents (4)**
+- Near Miss, First Aid Injury, Medical Treatment Injury, Lost Time Injury
+
+Each parameter tracks: **Target**, **Actual**, **Score**
+
+---
+
+## 🎯 Key Features
+
+### ✅ Implemented
+
+- [x] JWT authentication & authorization
+- [x] Role-based access control (4 roles)
+- [x] Site-level access restrictions
+- [x] Multi-tenant data isolation
+- [x] Interactive dashboard with charts
+- [x] Excel import functionality
+- [x] Admin panel (user/site management)
+- [x] Configurable scoring weights
+- [x] Audit logging system
+- [x] Monthly trend visualization
+- [x] KPI cards & gauge charts
+
+### 🚧 Future Enhancements
+
 - [ ] PDF report generation
 - [ ] Email notifications
 - [ ] Advanced analytics & predictions
 - [ ] Mobile app (React Native)
 - [ ] Real-time notifications
-- [ ] Data export to multiple formats
+- [ ] Multi-format data export
 
-## 🎨 UI Design
+---
 
-UI will match the current dashboard structure:
-- Header with site/date filters
-- KPI cards at top
-- Sections for Training, Compliance, Emergency & Audits, Incidents
-- Similar color scheme and layout
+## 🔌 API Endpoints
 
-## 📝 Available Scripts
+### Authentication
+```
+POST   /api/auth/login      - User login
+POST   /api/auth/logout     - User logout
+GET    /api/auth/me         - Get current user
+POST   /api/auth/refresh    - Refresh token
+```
+
+### Dashboard
+```
+GET    /api/dashboard/metrics    - Get safety metrics
+GET    /api/dashboard/sites      - Get accessible sites
+POST   /api/dashboard/import     - Import Excel (ADMIN only)
+```
+
+### Admin
+```
+GET    /api/admin/users          - List users
+POST   /api/admin/users          - Create user
+PUT    /api/admin/users/:id      - Update user
+DELETE /api/admin/users/:id      - Delete user
+GET    /api/admin/sites          - List sites
+POST   /api/admin/sites          - Create site
+GET    /api/admin/settings       - Get company settings
+PUT    /api/admin/settings       - Update settings
+```
+
+---
+
+## 🛠️ Available Scripts
+
+### Backend
+```bash
+npm run dev                  # Start dev server
+npm run build                # Compile TypeScript
+npm start                    # Run production
+npm run prisma:generate      # Generate Prisma Client
+npm run prisma:migrate       # Run migrations
+npm run prisma:seed          # Seed database
+npm run prisma:studio        # Open Prisma Studio
+npm run create-admin         # Create admin user
+npm run generate-password    # Generate password hash
+```
 
 ### Frontend
 ```bash
 npm run dev          # Start dev server
 npm run build        # Build for production
-npm run preview      # Preview production build
+npm run preview      # Preview build
+npm run lint         # Run ESLint
 ```
 
-### Backend
-```bash
-npm run dev                  # Start dev server with nodemon
-npm run build                # Compile TypeScript
-npm start                    # Run compiled JavaScript
-npm run prisma:generate      # Generate Prisma Client
-npm run prisma:migrate       # Run database migrations
-npm run prisma:seed          # Seed database
-npm run prisma:studio        # Open Prisma Studio
-npm run create-admin         # Interactive admin user creation
-npm run generate-password    # Generate bcrypt password hash
-```
+---
 
-## 🔐 Environment Variables
+## 🔐 Security Features
 
-### Backend (.env)
-```env
-DATABASE_URL=postgresql://...
-PORT=5000
-NODE_ENV=development
-JWT_SECRET=your_secret
-JWT_EXPIRY=7d
-CORS_ORIGIN=http://localhost:5173
-```
+- **JWT Authentication** - Secure token-based auth
+- **Password Hashing** - Bcrypt with 10 rounds
+- **Role-Based Access** - 4-tier permission system
+- **Rate Limiting** - 10,000 requests per 15 minutes
+- **CORS Protection** - Configurable origin whitelist
+- **Helmet.js** - Security headers
+- **Input Validation** - Request validation
 
-### Frontend (.env)
-```env
-VITE_API_URL=http://localhost:5000/api
-```
+---
 
 ## 🚀 Deployment
 
-This application is ready for production deployment on **100% free hosting**!
+This application is ready for **100% FREE hosting**!
 
-### Quick Deploy (5 minutes)
-See **[QUICK_DEPLOY.md](./QUICK_DEPLOY.md)** for the fastest deployment path.
-
-### Comprehensive Guide
-See **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** for detailed step-by-step instructions.
-
-### Deployment Checklist
-See **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** for pre-deployment verification.
-
-### Hosting Stack (All Free Tiers)
+### Hosting Stack (Free Tiers)
 - **Frontend**: Vercel (Unlimited)
 - **Backend**: Render.com (750 hours/month)
 - **Database**: Supabase (500MB) or Vercel Postgres (256MB)
 
 **Total Cost: $0/month** ✅
 
+### Deployment Guides
+- **[Quick Deploy](docs/deployment/QUICK_DEPLOY.md)** - 5-minute setup
+- **[Comprehensive Guide](docs/deployment/DEPLOYMENT_GUIDE.md)** - Detailed instructions
+- **[Deployment Checklist](docs/deployment/DEPLOYMENT_CHECKLIST.md)** - Pre-deployment verification
+
+---
+
+## 📚 Documentation
+
+### Getting Started
+- [Getting Started Guide](docs/GETTING_STARTED.md)
+- [Quick Start](docs/QUICK_START.md)
+
+### Deployment
+- [Quick Deploy Guide](docs/deployment/QUICK_DEPLOY.md)
+- [Deployment Guide](docs/deployment/DEPLOYMENT_GUIDE.md)
+- [Deployment Checklist](docs/deployment/DEPLOYMENT_CHECKLIST.md)
+
+### Development
+- [Development Progress](docs/development/PROGRESS.md)
+
+### Implementation Details
+- [Dynamic KPI Stats](docs/implementation/DYNAMIC_KPI_STATS_FIX.md)
+- [Enhanced UI](docs/implementation/ENHANCED_UI_IMPLEMENTATION.md)
+- [Hybrid Dashboard](docs/implementation/HYBRID_DASHBOARD_UPDATE.md)
+- [Weighted Scoring](docs/implementation/WEIGHTED_SCORING_IMPLEMENTATION.md)
+
+---
+
+## 📂 Data Files
+
+### Reference Data
+Located in `data/reference/`:
+- `Data.csv` - Sample monthly safety metrics
+- `Dashboard.csv`, `Analysis.csv`, `Meter.csv` - Dashboard configuration
+- `Instruction.csv` - User instructions
+- `Untitled.xlsx` - Excel template
+
+### Sample Data
+Located in `data/samples/`:
+- Sample Excel files for testing import functionality
+
+### Database Credentials
+Located in `data/secret` - Cloud PostgreSQL credentials
+
+---
+
 ## 🔧 Helper Scripts
 
-### Create Super Admin User
+### Create Admin User
 ```bash
 cd backend
 npm run create-admin
 ```
-Interactive script to create your first company and super admin user.
+Interactive script to create company and super admin user.
 
 ### Generate Password Hash
 ```bash
 cd backend
 npm run generate-password <password>
 ```
-Generates a bcrypt hash for manual user creation.
+Generates bcrypt hash for manual user creation.
 
-## 📚 Additional Features
+### Generate Sample Excel
+```bash
+cd scripts
+node generate-sample-excel.js
+```
+Creates sample Excel file for testing imports.
 
-### Multi-Tenancy
-- **Company Isolation**: Each company's data is completely isolated
-- **Site Management**: Unlimited sites per company
-- **User Access Control**: Fine-grained site-level permissions
+---
 
-### Security
-- **JWT Authentication**: Secure token-based auth
-- **Password Hashing**: Bcrypt with 10 rounds
-- **Role-Based Access**: 4-tier permission system
-- **Rate Limiting**: DDoS protection (10,000 req/15min)
-- **CORS Protection**: Configurable origin whitelist
-- **Helmet.js**: Security headers
+## 🐛 Troubleshooting
 
-### Dashboard Features
-- **KPI Summary Cards**: Key metrics at a glance
-- **Gauge Charts**: Visual performance indicators
-- **Monthly Trends**: Area charts with statistics
-- **Parameter Details**: 18 safety metrics with bar charts
-- **Filtering**: By site, month, and year
-- **Auto-refresh**: After Excel import
+### Backend Won't Start
+1. Check PostgreSQL is running
+2. Verify `.env` database URL
+3. Run migrations: `npm run prisma:migrate`
+4. Check port 5000 is not in use
+
+### Frontend Can't Connect
+1. Verify backend is running on port 5000
+2. Check CORS settings in backend `.env`
+3. Ensure `VITE_API_URL` in frontend `.env`
+
+### Login Fails
+1. Verify database is seeded
+2. Check credentials in `prisma/seed.ts`
+3. Ensure JWT_SECRET is set
+
+---
 
 ## 🤝 Contributing
 
 This is a private enterprise project. Contact the team lead for contribution guidelines.
 
+---
+
 ## 📄 License
 
 Proprietary - All Rights Reserved
+
+---
+
+## 📞 Support
+
+For issues or questions:
+- Check documentation in `docs/`
+- Review implementation notes in `docs/implementation/`
+- Refer to development progress in `docs/development/`
+
+---
+
+**Last Updated**: 2025-11-04
+**Version**: 2.0.0
+**Status**: Production Ready ✅
