@@ -86,7 +86,21 @@ safety-dashboard-v2/
 
 ## 🔑 Login Credentials
 
-Pre-seeded user accounts for development:
+### Production (https://kpi.protecther.in)
+
+Real accounts in the live database. Passwords are intentionally not listed here — reset via `npm run generate-password <new_password>` in `backend/` and update the user's `passwordHash`, or ask a Super Admin to do it from the Admin panel.
+
+| Role | Email |
+|------|-------|
+| Super Admin | protectherllp@gmail.com |
+| Super Admin | sahil.shelote@protecther.in |
+| Super Admin | yashnkm2001@gmail.com |
+| Manager | Demo@abcd.com |
+| Manager | junaid@bmconstructions.com |
+
+### Local Development
+
+These only exist after running `npm run prisma:seed` against a local/dev database (see `backend/prisma/seed.ts`) — they are **not** present in production.
 
 | Role | Email | Password | Access |
 |------|-------|----------|--------|
@@ -94,8 +108,8 @@ Pre-seeded user accounts for development:
 | **Manager** | manager@abc.com | Manager@123 | Site-Specific |
 | **Viewer** | viewer@abc.com | Viewer@123 | Read-Only |
 
-**Company**: ABC Manufacturing Corp
-**Sites**: Manufacturing Plant 1 (Mumbai), Plant 2 (Delhi), HQ (Bangalore)
+**Seed Company**: ABC Manufacturing Corp
+**Seed Sites**: Manufacturing Plant 1 (Mumbai), Plant 2 (Delhi), HQ (Bangalore)
 
 ---
 
