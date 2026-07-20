@@ -224,17 +224,21 @@ export class SafetyMetricsService {
   /**
    * Parameter weights - defines max points for each parameter (total = 100 points exactly)
    *
-   * Weight Distribution:
+   * Weight Distribution (32 parameters):
    * - Critical Incidents: 40 points (8 pts each × 5 params)
-   * - Compliance: 4 points
-   * - Core Performance: 24 points (2 pts each × 12 params)
+   * - Compliance: 4 points (1 param)
+   * - Core Performance: 22 points (2 pts each × 11 params)
    * - Documentation: 4 points (1 pt each × 4 params)
-   * - PPE: 4 points (2 pts each × 2 params)
-   * - Training Mgmt: 4 points (2 pts each × 2 params)
+   * - PPE: 6 points (ppeComplianceRate 4 + ppeObservations 2)
+   * - Training Mgmt: 6 points (overdueTrainings 4 + upcomingTrainings 2)
    * - Environment: 12 points (2 pts each × 6 params)
-   * - Health: 4 points (2 pts each × 2 params)
-   * - Observations: 4 points (2 pts each × 2 params)
+   * - Health: 6 points (healthCheckupCompliance 4 + waterQualityTest 2)
    * Total = 100 points
+   *
+   * NOTE: this previously summed to 92, not 100 — ppeComplianceRate,
+   * overdueTrainings, workforceTrainedPercent, and healthCheckupCompliance
+   * were each bumped +2 to close the gap, since they were under-weighted
+   * relative to their category's intended share.
    */
   private readonly PARAMETER_WEIGHTS = {
     // Critical Incidents (40 points total) - Binary scoring
@@ -257,7 +261,7 @@ export class SafetyMetricsService {
     emergencyMockDrills: 2,
     internalAudit: 2,
     safetyObservationRaised: 2,
-    workforceTrainedPercent: 2, // NEW
+    workforceTrainedPercent: 4, // NEW (was 2)
     ppeObservations: 2, // NEW
     upcomingTrainings: 2, // NEW
 
@@ -267,11 +271,11 @@ export class SafetyMetricsService {
     workPermitIssued: 1,
     safeWorkMethodStatement: 1,
 
-    // PPE Compliance (2 points) - NEW
-    ppeComplianceRate: 2,
+    // PPE Compliance (4 points) - NEW (was 2)
+    ppeComplianceRate: 4,
 
-    // Training Management (2 points) - NEW
-    overdueTrainings: 2, // Binary: 0 = full points, any > 0 = 0 points
+    // Training Management (4 points) - NEW (was 2)
+    overdueTrainings: 4, // Binary: 0 = full points, any > 0 = 0 points
 
     // Environment Metrics (12 points total) - NEW
     wasteGenerated: 2, // Lower is better
@@ -281,8 +285,8 @@ export class SafetyMetricsService {
     spillsIncidents: 2, // Binary: 0 = full points
     environmentalIncidents: 2, // Binary: 0 = full points
 
-    // Health & Hygiene (4 points total) - NEW
-    healthCheckupCompliance: 2,
+    // Health & Hygiene (4 points total) - NEW (healthCheckupCompliance was 2)
+    healthCheckupCompliance: 4,
     waterQualityTest: 2,
   };
 
@@ -297,15 +301,22 @@ export class SafetyMetricsService {
     isIncident: boolean = false,
     lowerIsBetter: boolean = false
   ): number {
-    // Special case: If target and actual are both equal, always give full points
-    if (target === actual) {
-      return weight;
+    // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0 score
+    // This prevents empty months from showing 100%
+    if (target === 0 && actual === 0) {
+      return 0;
     }
 
     // For incident metrics (target should be 0, lower actual is better)
     // Binary scoring: 0 incidents = full weight, any incident = 0 points
+    // Note: For incidents, target=0 is expected, so we check if there's any actual value
     if (isIncident) {
       return actual === 0 ? weight : 0;
+    }
+
+    // Special case: If target equals actual (and both > 0), give full points
+    if (target === actual && target > 0) {
+      return weight;
     }
 
     // For negative metrics (lower actual is better - waste, energy, water, overdue trainings)
@@ -330,11 +341,71 @@ export class SafetyMetricsService {
   }
 
   /**
+   * Target/actual field pairs for all 32 parameters — used only to detect
+   * whether a record has any real data at all (see hasNoData below).
+   */
+  private readonly TARGET_ACTUAL_FIELDS: [string, string][] = [
+    ['manDaysTarget', 'manDaysActual'],
+    ['safeWorkHoursTarget', 'safeWorkHoursActual'],
+    ['safetyInductionTarget', 'safetyInductionActual'],
+    ['toolBoxTalkTarget', 'toolBoxTalkActual'],
+    ['jobSpecificTrainingTarget', 'jobSpecificTrainingActual'],
+    ['formalSafetyInspectionTarget', 'formalSafetyInspectionActual'],
+    ['nonComplianceRaisedTarget', 'nonComplianceRaisedActual'],
+    ['nonComplianceCloseTarget', 'nonComplianceCloseActual'],
+    ['safetyObservationRaisedTarget', 'safetyObservationRaisedActual'],
+    ['safetyObservationCloseTarget', 'safetyObservationCloseActual'],
+    ['workPermitIssuedTarget', 'workPermitIssuedActual'],
+    ['safeWorkMethodStatementTarget', 'safeWorkMethodStatementActual'],
+    ['emergencyMockDrillsTarget', 'emergencyMockDrillsActual'],
+    ['internalAuditTarget', 'internalAuditActual'],
+    ['nearMissReportTarget', 'nearMissReportActual'],
+    ['firstAidInjuryTarget', 'firstAidInjuryActual'],
+    ['medicalTreatmentInjuryTarget', 'medicalTreatmentInjuryActual'],
+    ['lostTimeInjuryTarget', 'lostTimeInjuryActual'],
+    ['recordableIncidentsTarget', 'recordableIncidentsActual'],
+    ['ppeComplianceRateTarget', 'ppeComplianceRateActual'],
+    ['ppeObservationsTarget', 'ppeObservationsActual'],
+    ['workforceTrainedTarget', 'workforceTrainedActual'],
+    ['upcomingTrainingsTarget', 'upcomingTrainingsActual'],
+    ['overdueTrainingsTarget', 'overdueTrainingsActual'],
+    ['wasteGeneratedTarget', 'wasteGeneratedActual'],
+    ['wasteDisposedTarget', 'wasteDisposedActual'],
+    ['energyConsumptionTarget', 'energyConsumptionActual'],
+    ['waterConsumptionTarget', 'waterConsumptionActual'],
+    ['spillsIncidentsTarget', 'spillsIncidentsActual'],
+    ['environmentalIncidentsTarget', 'environmentalIncidentsActual'],
+    ['healthCheckupComplianceTarget', 'healthCheckupComplianceActual'],
+    ['waterQualityTestTarget', 'waterQualityTestActual'],
+  ];
+
+  /**
+   * True only if every target and actual value across all 32 parameters is 0 —
+   * i.e. no real data was ever entered for this record, regardless of what its
+   * stored *Score columns contain (those can be wrong if a row was written by
+   * something other than the normal import/scoring path).
+   */
+  private hasNoData(metric: any): boolean {
+    return this.TARGET_ACTUAL_FIELDS.every(
+      ([target, actual]) => Number(metric[target] || 0) === 0 && Number(metric[actual] || 0) === 0
+    );
+  }
+
+  /**
    * Calculate totalScore, percentage, and rating from individual parameter scores
    * Uses weighted sum (not average) matching Excel logic
    * NOW INCLUDES ALL 32 PARAMETERS (18 original + 14 new)
    */
   private calculateMetricScores(metric: any): { totalScore: number; percentage: number; rating: 'LOW' | 'MEDIUM' | 'HIGH' } {
+    // A record with zero target AND zero actual across every one of the 32
+    // parameters has no real data entered for that month. Never award a score
+    // based on whatever happens to be sitting in the stored *Score columns in
+    // that case — those can be wrong if the row was written by something
+    // other than the normal import/scoring path (e.g. a direct DB insert).
+    if (this.hasNoData(metric)) {
+      return { totalScore: 0, percentage: 0, rating: 'LOW' };
+    }
+
     // Calculate weighted sum of all parameter scores
     // Note: Scores in DB are stored as 0-10 for backward compatibility,
     // but we need to convert them to weighted values
