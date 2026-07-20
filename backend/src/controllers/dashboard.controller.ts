@@ -81,6 +81,7 @@ export class DashboardController {
   async upsertMetrics(req: AuthRequest, res: Response) {
     const { siteId, month, year, ...metricsData } = req.body;
     const companyId = req.user!.companyId;
+    const role = req.user!.role;
 
     // Validate required fields
     if (!siteId || !month || !year) {
@@ -92,7 +93,8 @@ export class DashboardController {
       siteId,
       month,
       year,
-      metricsData
+      metricsData,
+      role
     );
 
     res.status(201).json({

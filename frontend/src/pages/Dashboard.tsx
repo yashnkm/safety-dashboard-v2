@@ -552,16 +552,15 @@ export default function Dashboard() {
 
     // Helper function to calculate percentage
     const calcPercentage = (actual: number, target: number, isIncident: boolean = false, lowerIsBetter: boolean = false) => {
+      // For incidents, target is always 0 by design — a genuinely perfect
+      // zero-incident month must not be treated as "no data" (checked below).
+      if (isIncident) {
+        return actual === 0 ? 100 : 0;
+      }
       // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0%
       // This prevents empty data from showing 100%
       if (target === 0 && actual === 0) {
         return 0;
-      }
-      if (isIncident) {
-        // For incidents: 0 actual = 100%, any incident = 0%
-        // Note: For incidents, we expect target=0, but we need actual data to exist
-        // If there's no data at all (handled above), we return 0%
-        return actual === 0 ? 100 : 0;
       }
       if (lowerIsBetter) {
         // For lower is better: <= target = 100%, > target = (target/actual) * 100

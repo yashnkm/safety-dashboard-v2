@@ -166,20 +166,32 @@ export class SafetyMetricsService {
     siteId: string,
     month: string,
     year: number,
-    data: any
+    data: any,
+    role?: string
   ) {
-    // Verify site belongs to company
+    // Verify site exists
     const site = await prisma.site.findUnique({
       where: { id: siteId },
       select: { companyId: true },
     });
 
-    if (!site || site.companyId !== companyId) {
+    if (!site) {
+      throw new AppError(404, 'Site not found');
+    }
+
+    // SUPER_ADMIN can save metrics for any site; everyone else is confined
+    // to their own company's sites (matches bulkImportMetrics below).
+    if (role !== 'SUPER_ADMIN' && site.companyId !== companyId) {
       throw new AppError(403, 'Access denied to this site');
     }
 
+    // Derive every parameter's score from its target/actual values — never
+    // trust *Score fields supplied directly in the request body, the same
+    // way bulkImportMetrics() already does for Excel imports.
+    const processedData = this.calculateAllParameterScores(data);
+
     // Calculate total score
-    const totalScore = this.calculateTotalScore(data);
+    const totalScore = this.calculateTotalScore(processedData);
     const percentage = (totalScore / 100) * 100;
     const rating = this.getRating(percentage);
 
@@ -193,7 +205,7 @@ export class SafetyMetricsService {
         },
       },
       update: {
-        ...data,
+        ...processedData,
         totalScore,
         percentage,
         rating,
@@ -203,7 +215,7 @@ export class SafetyMetricsService {
         siteId,
         month,
         year,
-        ...data,
+        ...processedData,
         totalScore,
         percentage,
         rating,
@@ -301,17 +313,20 @@ export class SafetyMetricsService {
     isIncident: boolean = false,
     lowerIsBetter: boolean = false
   ): number {
+    // For incident metrics, target is always 0 by design — "zero incidents"
+    // is the goal, not missing data. This must run BEFORE the no-data guard
+    // below: otherwise a genuinely perfect zero-incident month (target=0,
+    // actual=0) is indistinguishable from "no data entered" and incorrectly
+    // scores 0 instead of full weight. Record-level emptiness (every one of
+    // the 32 parameters at 0) is caught separately by hasNoData().
+    if (isIncident) {
+      return actual === 0 ? weight : 0;
+    }
+
     // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0 score
     // This prevents empty months from showing 100%
     if (target === 0 && actual === 0) {
       return 0;
-    }
-
-    // For incident metrics (target should be 0, lower actual is better)
-    // Binary scoring: 0 incidents = full weight, any incident = 0 points
-    // Note: For incidents, target=0 is expected, so we check if there's any actual value
-    if (isIncident) {
-      return actual === 0 ? weight : 0;
     }
 
     // Special case: If target equals actual (and both > 0), give full points
