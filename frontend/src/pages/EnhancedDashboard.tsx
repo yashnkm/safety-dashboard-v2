@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout.tsx';
@@ -35,6 +35,11 @@ export default function EnhancedDashboard() {
     incidents: true,
   });
 
+  // Tracks whether the initial month/year has already been set, either from
+  // a just-completed Excel import or from the "latest period with data" lookup
+  // below — prevents the two from fighting each other on mount.
+  const filtersInitializedRef = useRef(false);
+
   // Check for lastImport from localStorage (after Excel import)
   useEffect(() => {
     const lastImportStr = localStorage.getItem('lastImport');
@@ -44,6 +49,7 @@ export default function EnhancedDashboard() {
         if (lastImport.siteId) setSelectedSite(lastImport.siteId);
         if (lastImport.month) setSelectedMonth(lastImport.month);
         if (lastImport.year) setSelectedYear(lastImport.year);
+        filtersInitializedRef.current = true;
         // Clear the flag after using it
         localStorage.removeItem('lastImport');
       } catch (e) {
@@ -59,6 +65,32 @@ export default function EnhancedDashboard() {
   });
 
   const sites = sitesResponse?.data || [];
+
+  // Fetch every accessible metric (unfiltered) once, purely to find the most
+  // recent month/year that actually has data — so the dashboard doesn't default
+  // to the current calendar month and show "No Data Available" when the latest
+  // real entries are from a prior month.
+  const { data: latestPeriodData } = useQuery({
+    queryKey: ['latestPeriod'],
+    queryFn: () => dashboardService.getMetrics({}),
+  });
+
+  useEffect(() => {
+    if (filtersInitializedRef.current) return;
+    if (!latestPeriodData || latestPeriodData.length === 0) return;
+
+    const latest = latestPeriodData.reduce((best: any, m: any) => {
+      if (!best) return m;
+      if (m.year !== best.year) return m.year > best.year ? m : best;
+      return monthNames.indexOf(m.month) > monthNames.indexOf(best.month) ? m : best;
+    }, null);
+
+    if (latest) {
+      setSelectedMonth(latest.month);
+      setSelectedYear(latest.year);
+      filtersInitializedRef.current = true;
+    }
+  }, [latestPeriodData]);
 
   // Fetch metrics data
   const { data: metricsData, isLoading: metricsLoading } = useQuery({
@@ -107,8 +139,10 @@ export default function EnhancedDashboard() {
     const metric = metricsData[0];
 
     const calculatePercentage = (actual: number, target: number) => {
+      // If both are 0, this means NO DATA - return 0%
+      if (target === 0 && actual === 0) return 0;
       if (target === 0) return 0;
-      return (actual / target) * 100;
+      return Math.min((actual / target) * 100, 100);
     };
 
     return [
