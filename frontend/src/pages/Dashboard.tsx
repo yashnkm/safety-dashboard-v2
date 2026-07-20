@@ -195,6 +195,7 @@ export default function Dashboard() {
           target: metric.manDaysTarget || 0,
           actual: metric.manDaysActual || 0,
           score: Number(metric.manDaysScore) * 10 || 0,
+          weight: 2,
           unit: 'days'
         },
         {
@@ -203,6 +204,7 @@ export default function Dashboard() {
           target: metric.safeWorkHoursTarget || 0,
           actual: metric.safeWorkHoursActual || 0,
           score: Number(metric.safeWorkHoursScore) * 10 || 0,
+          weight: 2,
           unit: 'hrs'
         },
       ],
@@ -213,6 +215,7 @@ export default function Dashboard() {
           target: metric.safetyInductionTarget || 0,
           actual: metric.safetyInductionActual || 0,
           score: Number(metric.safetyInductionScore) * 10 || 0,
+          weight: 2,
           unit: 'persons'
         },
         {
@@ -221,6 +224,7 @@ export default function Dashboard() {
           target: metric.toolBoxTalkTarget || 0,
           actual: metric.toolBoxTalkActual || 0,
           score: Number(metric.toolBoxTalkScore) * 10 || 0,
+          weight: 2,
           unit: 'sessions'
         },
         {
@@ -229,6 +233,7 @@ export default function Dashboard() {
           target: metric.jobSpecificTrainingTarget || 0,
           actual: metric.jobSpecificTrainingActual || 0,
           score: Number(metric.jobSpecificTrainingScore) * 10 || 0,
+          weight: 2,
           unit: 'sessions'
         },
         {
@@ -237,6 +242,7 @@ export default function Dashboard() {
           target: metric.workforceTrainedTarget || 0,
           actual: metric.workforceTrainedActual || 0,
           score: Number(metric.workforceTrainedScore) * 10 || 0,
+          weight: 4,
           unit: '%'
         },
         {
@@ -245,6 +251,7 @@ export default function Dashboard() {
           target: metric.upcomingTrainingsTarget || 0,
           actual: metric.upcomingTrainingsActual || 0,
           score: Number(metric.upcomingTrainingsScore) * 10 || 0,
+          weight: 2,
           unit: 'sessions'
         },
         {
@@ -253,6 +260,7 @@ export default function Dashboard() {
           target: metric.overdueTrainingsTarget || 0,
           actual: metric.overdueTrainingsActual || 0,
           score: Number(metric.overdueTrainingsScore) * 10 || 0,
+          weight: 4,
           unit: 'sessions',
           isIncident: true
         },
@@ -264,6 +272,7 @@ export default function Dashboard() {
           target: metric.formalSafetyInspectionTarget || 0,
           actual: metric.formalSafetyInspectionActual || 0,
           score: Number(metric.formalSafetyInspectionScore) * 10 || 0,
+          weight: 2,
           unit: 'inspections'
         },
         {
@@ -272,6 +281,7 @@ export default function Dashboard() {
           target: metric.nonComplianceRaisedTarget || 0,
           actual: metric.nonComplianceRaisedActual || 0,
           score: Number(metric.nonComplianceRaisedScore) * 10 || 0,
+          weight: 4,
           unit: 'cases'
         },
         {
@@ -280,6 +290,7 @@ export default function Dashboard() {
           target: metric.nonComplianceCloseTarget || 0,
           actual: metric.nonComplianceCloseActual || 0,
           score: Number(metric.nonComplianceCloseScore) * 10 || 0,
+          weight: 1,
           unit: 'cases'
         },
         {
@@ -288,6 +299,7 @@ export default function Dashboard() {
           target: metric.safetyObservationRaisedTarget || 0,
           actual: metric.safetyObservationRaisedActual || 0,
           score: Number(metric.safetyObservationRaisedScore) * 10 || 0,
+          weight: 2,
           unit: 'observations'
         },
         {
@@ -296,6 +308,7 @@ export default function Dashboard() {
           target: metric.safetyObservationCloseTarget || 0,
           actual: metric.safetyObservationCloseActual || 0,
           score: Number(metric.safetyObservationCloseScore) * 10 || 0,
+          weight: 1,
           unit: 'observations'
         },
       ],
@@ -306,6 +319,7 @@ export default function Dashboard() {
           target: metric.workPermitIssuedTarget || 0,
           actual: metric.workPermitIssuedActual || 0,
           score: Number(metric.workPermitIssuedScore) * 10 || 0,
+          weight: 1,
           unit: 'permits'
         },
         {
@@ -314,6 +328,7 @@ export default function Dashboard() {
           target: metric.safeWorkMethodStatementTarget || 0,
           actual: metric.safeWorkMethodStatementActual || 0,
           score: Number(metric.safeWorkMethodStatementScore) * 10 || 0,
+          weight: 1,
           unit: 'statements'
         },
       ],
@@ -324,6 +339,7 @@ export default function Dashboard() {
           target: metric.emergencyMockDrillsTarget || 0,
           actual: metric.emergencyMockDrillsActual || 0,
           score: Number(metric.emergencyMockDrillsScore) * 10 || 0,
+          weight: 2,
           unit: 'drills'
         },
         {
@@ -332,6 +348,7 @@ export default function Dashboard() {
           target: metric.internalAuditTarget || 0,
           actual: metric.internalAuditActual || 0,
           score: Number(metric.internalAuditScore) * 10 || 0,
+          weight: 2,
           unit: 'audits'
         },
       ],
@@ -342,6 +359,7 @@ export default function Dashboard() {
           target: metric.nearMissReportTarget || 0,
           actual: metric.nearMissReportActual || 0,
           score: Number(metric.nearMissReportScore) * 10 || 0,
+          weight: 8,
           unit: 'incidents',
           isIncident: true
         },
@@ -351,6 +369,7 @@ export default function Dashboard() {
           target: metric.firstAidInjuryTarget || 0,
           actual: metric.firstAidInjuryActual || 0,
           score: Number(metric.firstAidInjuryScore) * 10 || 0,
+          weight: 8,
           unit: 'injuries',
           isIncident: true
         },
@@ -360,6 +379,7 @@ export default function Dashboard() {
           target: metric.medicalTreatmentInjuryTarget || 0,
           actual: metric.medicalTreatmentInjuryActual || 0,
           score: Number(metric.medicalTreatmentInjuryScore) * 10 || 0,
+          weight: 8,
           unit: 'injuries',
           isIncident: true
         },
@@ -369,6 +389,7 @@ export default function Dashboard() {
           target: metric.lostTimeInjuryTarget || 0,
           actual: metric.lostTimeInjuryActual || 0,
           score: Number(metric.lostTimeInjuryScore) * 10 || 0,
+          weight: 8,
           unit: 'injuries',
           isIncident: true
         },
@@ -378,6 +399,7 @@ export default function Dashboard() {
           target: metric.recordableIncidentsTarget || 0,
           actual: metric.recordableIncidentsActual || 0,
           score: Number(metric.recordableIncidentsScore) * 10 || 0,
+          weight: 8,
           unit: 'incidents',
           isIncident: true
         },
@@ -389,6 +411,7 @@ export default function Dashboard() {
           target: metric.ppeComplianceRateTarget || 0,
           actual: metric.ppeComplianceRateActual || 0,
           score: Number(metric.ppeComplianceRateScore) * 10 || 0,
+          weight: 4,
           unit: '%'
         },
         {
@@ -397,6 +420,7 @@ export default function Dashboard() {
           target: metric.ppeObservationsTarget || 0,
           actual: metric.ppeObservationsActual || 0,
           score: Number(metric.ppeObservationsScore) * 10 || 0,
+          weight: 2,
           unit: 'observations'
         },
       ],
@@ -407,6 +431,7 @@ export default function Dashboard() {
           target: metric.wasteGeneratedTarget || 0,
           actual: metric.wasteGeneratedActual || 0,
           score: Number(metric.wasteGeneratedScore) * 10 || 0,
+          weight: 2,
           unit: 'kg',
           lowerIsBetter: true
         },
@@ -416,6 +441,7 @@ export default function Dashboard() {
           target: metric.wasteDisposedTarget || 0,
           actual: metric.wasteDisposedActual || 0,
           score: Number(metric.wasteDisposedScore) * 10 || 0,
+          weight: 2,
           unit: 'kg'
         },
         {
@@ -424,6 +450,7 @@ export default function Dashboard() {
           target: metric.energyConsumptionTarget || 0,
           actual: metric.energyConsumptionActual || 0,
           score: Number(metric.energyConsumptionScore) * 10 || 0,
+          weight: 2,
           unit: 'kW',
           lowerIsBetter: true
         },
@@ -433,6 +460,7 @@ export default function Dashboard() {
           target: metric.waterConsumptionTarget || 0,
           actual: metric.waterConsumptionActual || 0,
           score: Number(metric.waterConsumptionScore) * 10 || 0,
+          weight: 2,
           unit: 'ltr',
           lowerIsBetter: true
         },
@@ -442,6 +470,7 @@ export default function Dashboard() {
           target: metric.spillsIncidentsTarget || 0,
           actual: metric.spillsIncidentsActual || 0,
           score: Number(metric.spillsIncidentsScore) * 10 || 0,
+          weight: 2,
           unit: 'incidents',
           isIncident: true
         },
@@ -451,6 +480,7 @@ export default function Dashboard() {
           target: metric.environmentalIncidentsTarget || 0,
           actual: metric.environmentalIncidentsActual || 0,
           score: Number(metric.environmentalIncidentsScore) * 10 || 0,
+          weight: 2,
           unit: 'incidents',
           isIncident: true
         },
@@ -462,6 +492,7 @@ export default function Dashboard() {
           target: metric.healthCheckupComplianceTarget || 0,
           actual: metric.healthCheckupComplianceActual || 0,
           score: Number(metric.healthCheckupComplianceScore) * 10 || 0,
+          weight: 4,
           unit: '%'
         },
         {
@@ -470,6 +501,7 @@ export default function Dashboard() {
           target: metric.waterQualityTestTarget || 0,
           actual: metric.waterQualityTestActual || 0,
           score: Number(metric.waterQualityTestScore) * 10 || 0,
+          weight: 2,
           unit: 'tests'
         },
       ],

@@ -8,6 +8,7 @@ interface ParameterCardProps {
   target: number;
   actual: number;
   score: number;
+  weight: number; // This parameter's max points out of the 100-point total
   unit?: string;
   isIncident?: boolean; // For incidents, lower actual is better
 }
@@ -18,9 +19,14 @@ export default function ParameterCard({
   target,
   actual,
   score,
+  weight,
   unit = '',
   isIncident = false,
 }: ParameterCardProps) {
+  // How many of this parameter's points were actually earned toward the
+  // 100-point total — distinct from "Achievement", which is just this
+  // parameter's own ratio and says nothing about how much it matters.
+  const pointsEarned = (score * weight) / 100;
   // Determine status based on score
   const getStatus = () => {
     if (score >= 90) return { label: 'Excellent', color: 'bg-green-100 text-green-700 border-green-300' };
@@ -104,11 +110,11 @@ export default function ParameterCard({
           </div>
         </div>
 
-        {/* Score Display */}
+        {/* Weighted Contribution to the 100-point total */}
         <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-xs text-muted-foreground">Score</span>
+          <span className="text-xs text-muted-foreground">Contributes to Total</span>
           <span className={`text-xl font-bold ${score >= 90 ? 'text-green-600' : score >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
-            {score.toFixed(1)}
+            {pointsEarned.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">/ {weight} pts</span>
           </span>
         </div>
       </CardContent>
