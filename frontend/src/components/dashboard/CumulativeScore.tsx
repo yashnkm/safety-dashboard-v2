@@ -14,7 +14,8 @@ interface CumulativeScoreProps {
 }
 
 export default function CumulativeScore({ totalScore, maxScore, rating, parameterStats }: CumulativeScoreProps) {
-  const percentage = (totalScore / maxScore) * 100;
+  // Avoid division by zero - if maxScore is 0, percentage is 0
+  const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
   // Use provided stats or calculate defaults
   const stats = parameterStats || {

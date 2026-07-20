@@ -8,7 +8,8 @@ interface GaugeChartProps {
 }
 
 export default function GaugeChart({ value, max, title, subtitle }: GaugeChartProps) {
-  const percentage = (value / max) * 100;
+  // Avoid division by zero - if max is 0, percentage is 0
+  const percentage = max > 0 ? (value / max) * 100 : 0;
 
   // Color based on performance: 0-30 (LOW/Red), 30-70 (MEDIUM/Yellow), 70-100 (HIGH/Green)
   const getColor = (pct: number) => {

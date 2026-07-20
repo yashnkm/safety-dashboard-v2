@@ -15,15 +15,19 @@ interface MonthlyTrendChartProps {
 }
 
 export default function MonthlyTrendChart({ data, year }: MonthlyTrendChartProps) {
-  // Calculate statistics
+  // Calculate statistics - filter out months with no data (score = 0)
   const scores = data.map(d => d.score).filter(s => s > 0);
   const currentScore = scores.length > 0 ? scores[scores.length - 1] : 0;
   const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-  const bestMonth = data.reduce((max, item) => item.score > max.score ? item : max, data[0]);
 
-  // Calculate trend
-  const recentScores = scores.slice(-3); // Last 3 months
-  const trend = recentScores.length >= 2
+  // Handle empty data array to prevent errors
+  const bestMonth = data.length > 0
+    ? data.reduce((max, item) => item.score > max.score ? item : max, data[0])
+    : { month: 'N/A', score: 0, target: 100 };
+
+  // Calculate trend - avoid division by zero
+  const recentScores = scores.slice(-3); // Last 3 months with data
+  const trend = recentScores.length >= 2 && recentScores[0] > 0
     ? ((recentScores[recentScores.length - 1] - recentScores[0]) / recentScores[0]) * 100
     : 0;
 
