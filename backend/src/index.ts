@@ -8,6 +8,11 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
+// Trust the first hop proxy (Cloudflare Tunnel) so req.ip and the
+// X-Forwarded-For header are handled correctly — without this,
+// express-rate-limit throws on every request behind the tunnel.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(
