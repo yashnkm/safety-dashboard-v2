@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from '@/pages/Login.tsx';
+import ForgotPassword from '@/pages/ForgotPassword.tsx';
+import ResetPassword from '@/pages/ResetPassword.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
 import EnhancedDashboard from '@/pages/EnhancedDashboard.tsx';
 import ExcelImport from '@/pages/ExcelImport.tsx';
@@ -29,6 +31,8 @@ function App() {
             path="/login"
             element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
           />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected Routes */}
           <Route

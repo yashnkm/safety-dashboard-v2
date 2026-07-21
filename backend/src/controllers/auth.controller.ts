@@ -81,4 +81,55 @@ export class AuthController {
       message: 'Logged out successfully',
     });
   }
+
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Email is required',
+        });
+      }
+
+      const result = await authService.requestPasswordReset(email);
+
+      res.json({
+        status: 'success',
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, newPassword } = req.body;
+
+      if (!token || !newPassword) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Token and newPassword are required',
+        });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Password must be at least 8 characters',
+        });
+      }
+
+      const result = await authService.resetPassword(token, newPassword);
+
+      res.json({
+        status: 'success',
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Shield, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
@@ -94,27 +94,13 @@ export default function Login() {
                 'Sign In'
               )}
             </Button>
-          </form>
 
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-600 text-center">
-              Demo Credentials:
+            <p className="text-center text-sm">
+              <Link to="/forgot-password" className="text-blue-600 hover:underline">
+                Forgot password?
+              </Link>
             </p>
-            <div className="mt-2 text-xs text-gray-500 space-y-1">
-              <div className="flex justify-between px-4">
-                <span>Admin:</span>
-                <span className="font-mono">admin@abc.com / Admin@123</span>
-              </div>
-              <div className="flex justify-between px-4">
-                <span>Manager:</span>
-                <span className="font-mono">manager@abc.com / Manager@123</span>
-              </div>
-              <div className="flex justify-between px-4">
-                <span>Viewer:</span>
-                <span className="font-mono">viewer@abc.com / Viewer@123</span>
-              </div>
-            </div>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </div>
