@@ -9,6 +9,7 @@ export interface User {
     id: string;
     companyName: string;
     companyCode: string;
+    logoUrl?: string | null;
   };
   sites?: Array<{
     id: string;

@@ -91,6 +91,7 @@ export default function AppSidebar({
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -135,7 +136,16 @@ export default function AppSidebar({
 
       {/* Sidebar Header */}
       <div className="flex h-16 items-center gap-2 border-b px-4">
-        <Shield className={`h-6 w-6 text-primary flex-shrink-0 ${isCollapsed ? '' : ''}`} />
+        {user?.company?.logoUrl && !logoFailed ? (
+          <img
+            src={user.company.logoUrl}
+            alt={`${user.company.companyName} logo`}
+            className="h-6 w-6 flex-shrink-0 rounded object-contain"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <Shield className="h-6 w-6 text-primary flex-shrink-0" />
+        )}
         {!isCollapsed && (
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Safety Dashboard</span>

@@ -63,6 +63,7 @@ export class AuthService {
           id: user.company.id,
           companyName: user.company.companyName,
           companyCode: user.company.companyCode,
+          logoUrl: user.company.logoUrl,
         },
         sites: user.userSiteAccess.map((access) => ({
           id: access.site.id,
@@ -124,6 +125,7 @@ export class AuthService {
           id: user.company.id,
           companyName: user.company.companyName,
           companyCode: user.company.companyCode,
+          logoUrl: user.company.logoUrl,
         },
       },
     };
@@ -156,6 +158,7 @@ export class AuthService {
         id: user.company.id,
         companyName: user.company.companyName,
         companyCode: user.company.companyCode,
+        logoUrl: user.company.logoUrl,
       },
       sites: user.userSiteAccess.map((access) => ({
         id: access.site.id,
