@@ -4,6 +4,25 @@ import { adminService } from '../services/admin.service';
 import { AppError } from '../middleware/errorHandler';
 
 export class AdminController {
+  // ==================== UPLOADS ====================
+
+  /**
+   * POST /api/admin/upload-logo
+   * Upload a company logo image, returns its public URL
+   */
+  async uploadLogo(req: AuthRequest, res: Response) {
+    if (!req.file) {
+      throw new AppError(400, 'No file uploaded');
+    }
+
+    const url = `${req.protocol}://${req.get('host')}/uploads/logos/${req.file.filename}`;
+
+    res.json({
+      status: 'success',
+      data: { url },
+    });
+  }
+
   // ==================== COMPANIES ====================
 
   /**

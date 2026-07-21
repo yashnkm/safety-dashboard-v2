@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -25,6 +26,19 @@ app.use(
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files (e.g. company logos). Explicitly relax helmet's
+// default same-origin Cross-Origin-Resource-Policy for this path only —
+// otherwise the frontend (kpi.protecther.in) can't <img src> anything
+// served from here (api.protecther.in).
+app.use(
+  '/uploads',
+  (_req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.join(__dirname, '../uploads'))
+);
 
 // Rate limiting - very lenient for development and testing
 const limiter = rateLimit({

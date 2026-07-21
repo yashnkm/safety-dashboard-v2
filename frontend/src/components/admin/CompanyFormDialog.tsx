@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { X, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { adminService, type Company, type CreateCompanyDto, type UpdateCompanyDto } from '@/services/admin.service';
+
+const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2MB, matches the backend limit
 
 interface Props {
   isOpen: boolean;
@@ -15,6 +18,9 @@ interface Props {
 
 export default function CompanyFormDialog({ isOpen, onClose, company }: Props) {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState('');
   const [formData, setFormData] = useState({
     companyName: '',
     companyCode: '',
@@ -59,6 +65,33 @@ export default function CompanyFormDialog({ isOpen, onClose, company }: Props) {
       onClose();
     },
   });
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+
+    setLogoError('');
+
+    if (!ACCEPTED_LOGO_TYPES.includes(file.type)) {
+      setLogoError('Logo must be a PNG, JPEG, WEBP, or SVG image');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError('Logo must be smaller than 2MB');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const result = await adminService.uploadLogo(file);
+      setFormData((prev) => ({ ...prev, logoUrl: result.data.url }));
+    } catch (err: any) {
+      setLogoError(err.response?.data?.message || 'Upload failed. Please try again.');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateCompanyDto }) =>
@@ -182,21 +215,63 @@ export default function CompanyFormDialog({ isOpen, onClose, company }: Props) {
             </div>
           </div>
 
-          {/* Logo URL */}
+          {/* Logo */}
           <div>
-            <Label>Logo URL</Label>
-            <Input
-              type="url"
-              value={formData.logoUrl}
-              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-              placeholder="https://example.com/logo.png"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Must be a direct link to the image file. Google Drive "share" links
-              (drive.google.com/file/d/.../view) will not work — use
-              lh3.googleusercontent.com/d/&lt;FILE_ID&gt; instead. If the logo doesn't
-              show up, it silently falls back to the default icon.
-            </p>
+            <Label>Logo</Label>
+            <div className="flex items-center gap-3 mt-1">
+              {formData.logoUrl ? (
+                <img
+                  src={formData.logoUrl}
+                  alt="Logo preview"
+                  className="h-12 w-12 rounded border object-contain bg-white"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded border bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                  None
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_LOGO_TYPES.join(',')}
+                onChange={handleLogoFileChange}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploadingLogo}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {isUploadingLogo ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    {formData.logoUrl ? 'Replace' : 'Upload'} Logo
+                  </>
+                )}
+              </Button>
+
+              {formData.logoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600"
+                  onClick={() => setFormData({ ...formData, logoUrl: '' })}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+            {logoError && <p className="text-xs text-red-600 mt-1">{logoError}</p>}
+            <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, WEBP, or SVG — max 2MB.</p>
           </div>
 
           {/* Status */}

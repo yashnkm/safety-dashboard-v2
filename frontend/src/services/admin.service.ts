@@ -121,6 +121,19 @@ export type UpdateUserDto = Partial<Omit<CreateUserDto, 'companyId' | 'email'>> 
 // ==================== ADMIN SERVICE ====================
 
 export const adminService = {
+  // Uploads
+  uploadLogo: async (file: File): Promise<{ status: string; data: { url: string } }> => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    // Let the browser set Content-Type (with the multipart boundary) itself —
+    // the api client's default 'application/json' header would otherwise
+    // override it and the server couldn't parse the body.
+    const response = await api.post('/admin/upload-logo', formData, {
+      headers: { 'Content-Type': undefined },
+    });
+    return response.data;
+  },
+
   // Companies
   getAllCompanies: async () => {
     const response = await api.get('/admin/companies');

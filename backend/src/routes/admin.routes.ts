@@ -3,11 +3,22 @@ import { adminController } from '../controllers/admin.controller';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/authorization';
 import { asyncHandler } from '../middleware/errorHandler';
+import { uploadLogo } from '../middleware/upload';
 
 const router = Router();
 
 // All admin routes require authentication
 router.use(authenticate);
+
+// ==================== UPLOADS ====================
+// SUPER_ADMIN and ADMIN can upload a company logo
+
+router.post(
+  '/upload-logo',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  uploadLogo.single('logo'),
+  asyncHandler(adminController.uploadLogo.bind(adminController))
+);
 
 // ==================== COMPANIES ====================
 // Only SUPER_ADMIN can manage companies
