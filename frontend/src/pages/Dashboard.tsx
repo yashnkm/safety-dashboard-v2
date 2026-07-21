@@ -41,6 +41,7 @@ import {
   LeafyGreen,
   Heart,
   TestTube,
+  Building2,
 } from 'lucide-react';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
@@ -661,6 +662,26 @@ export default function Dashboard() {
 
   const cumulativeScore = calculateCumulativeScore();
 
+  // Which site/company the numbers on screen actually belong to. "All Sites"
+  // does not aggregate across sites — it just shows whichever record the API
+  // returns first — so make that explicit instead of leaving it ambiguous,
+  // especially once more than one site has data for the same period.
+  const getDataSourceInfo = () => {
+    if (!metricsData || metricsData.length === 0) return null;
+
+    const distinctSiteIds = new Set(metricsData.map((m: any) => m.siteId));
+    const primary = metricsData[0];
+    const matchedSite = sites.find((s: any) => s.id === primary.siteId);
+    const siteName = matchedSite?.siteName || primary.site?.siteName || 'Unknown site';
+    const companyName = matchedSite?.company?.companyName;
+    const label = companyName ? `${siteName} (${companyName})` : siteName;
+    const otherCount = distinctSiteIds.size - 1;
+
+    return { label, isAmbiguous: otherCount > 0, otherCount };
+  };
+
+  const dataSourceInfo = getDataSourceInfo();
+
   return (
     <DashboardLayout
       sidebar={
@@ -692,6 +713,36 @@ export default function Dashboard() {
             </Button>
           )}
         </div>
+
+        {/* Data Source Label */}
+        {!metricsLoading && dataSourceInfo && (
+          <div
+            className={`rounded-lg border px-4 py-2 text-sm flex items-center gap-2 ${
+              dataSourceInfo.isAmbiguous
+                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}
+          >
+            {dataSourceInfo.isAmbiguous ? (
+              <>
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>
+                  Showing <strong>{dataSourceInfo.label}</strong> only — {dataSourceInfo.otherCount} other
+                  site{dataSourceInfo.otherCount > 1 ? 's' : ''} also {dataSourceInfo.otherCount > 1 ? 'have' : 'has'} data
+                  for this period and {dataSourceInfo.otherCount > 1 ? "aren't" : "isn't"} included here. Select a
+                  specific site to see it.
+                </span>
+              </>
+            ) : (
+              <>
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <span>
+                  Showing data for <strong>{dataSourceInfo.label}</strong>
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Loading State */}
         {metricsLoading && (
