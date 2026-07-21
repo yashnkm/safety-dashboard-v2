@@ -19,6 +19,7 @@ export interface Site {
   siteCode: string;
   company?: {
     companyName: string;
+    logoUrl?: string | null;
   };
 }
 

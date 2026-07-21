@@ -570,6 +570,7 @@ export class SafetyMetricsService {
           company: {
             select: {
               companyName: true,
+              logoUrl: true,
             },
           },
         },

@@ -12,7 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore.ts';
 import { authService } from '@/services/auth.service.ts';
 import {
@@ -30,6 +30,7 @@ interface Site {
   siteName: string;
   company?: {
     companyName: string;
+    logoUrl?: string | null;
   };
 }
 
@@ -93,6 +94,19 @@ export default function AppSidebar({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
 
+  // Prefer the currently selected site's company logo over the logged-in
+  // user's own home company — a SUPER_ADMIN's identity is fixed, but which
+  // company they're looking at changes constantly via the site filter, so
+  // the branding should follow what's on screen, not who's logged in.
+  const selectedSiteObj = sites.find((s) => s.id === selectedSite);
+  const effectiveLogoUrl =
+    (selectedSite !== 'all' ? selectedSiteObj?.company?.logoUrl : null) ||
+    user?.company?.logoUrl;
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [effectiveLogoUrl]);
+
   const handleLogout = async () => {
     await authService.logout();
     logout();
@@ -136,10 +150,11 @@ export default function AppSidebar({
 
       {/* Sidebar Header */}
       <div className="flex h-16 items-center gap-2 border-b px-4">
-        {user?.company?.logoUrl && !logoFailed ? (
+        {effectiveLogoUrl && !logoFailed ? (
           <img
-            src={user.company.logoUrl}
-            alt={`${user.company.companyName} logo`}
+            key={effectiveLogoUrl}
+            src={effectiveLogoUrl}
+            alt="Company logo"
             className="h-6 w-6 flex-shrink-0 rounded object-contain"
             onError={() => setLogoFailed(true)}
           />
