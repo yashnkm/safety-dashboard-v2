@@ -191,6 +191,12 @@ export default function CompanyFormDialog({ isOpen, onClose, company }: Props) {
               onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
               placeholder="https://example.com/logo.png"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Must be a direct link to the image file. Google Drive "share" links
+              (drive.google.com/file/d/.../view) will not work — use
+              lh3.googleusercontent.com/d/&lt;FILE_ID&gt; instead. If the logo doesn't
+              show up, it silently falls back to the default icon.
+            </p>
           </div>
 
           {/* Status */}
