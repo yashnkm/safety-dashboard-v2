@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Shield, Loader2, Eye, EyeOff, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
@@ -16,6 +16,8 @@ export default function Login() {
 
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('sessionExpired') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +50,12 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {sessionExpired && (
+            <div className="mb-4 p-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md flex items-start gap-2">
+              <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Your session expired. Please sign in again.</span>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
@@ -56,9 +64,13 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="admin@abc.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 required
                 disabled={loading}
               />
@@ -72,9 +84,13 @@ export default function Login() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError('');
+                  }}
                   required
                   disabled={loading}
                   className="pr-10"
@@ -112,6 +128,9 @@ export default function Login() {
               <Link to="/forgot-password" className="text-blue-600 hover:underline">
                 Forgot password?
               </Link>
+            </p>
+            <p className="text-center text-xs text-gray-400">
+              Reset links aren't emailed automatically yet — contact your administrator if you're locked out.
             </p>
           </form>
         </CardContent>

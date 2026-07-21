@@ -27,11 +27,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth and redirect to login
+    // Only treat this as "your session expired" when the failed request
+    // actually carried a token — a 401 from /auth/login just means wrong
+    // credentials, and redirecting there too would wipe out the error
+    // message the login page is about to show.
+    const hadToken = !!error.config?.headers?.Authorization;
+    if (error.response?.status === 401 && hadToken) {
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
-      window.location.href = '/login';
+      window.location.href = '/login?sessionExpired=true';
     }
     return Promise.reject(error);
   }
