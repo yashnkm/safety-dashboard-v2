@@ -4,7 +4,6 @@ import Login from '@/pages/Login.tsx';
 import ForgotPassword from '@/pages/ForgotPassword.tsx';
 import ResetPassword from '@/pages/ResetPassword.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
-import EnhancedDashboard from '@/pages/EnhancedDashboard.tsx';
 import ExcelImport from '@/pages/ExcelImport.tsx';
 import Admin from '@/pages/Admin.tsx';
 import ProtectedRoute from '@/components/auth/ProtectedRoute.tsx';
@@ -40,15 +39,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/dashboard/enhanced"
-            element={
-              <ProtectedRoute>
-                <EnhancedDashboard />
               </ProtectedRoute>
             }
           />
