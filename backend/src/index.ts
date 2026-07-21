@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/env';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
+import { cleanupOrphanedLogos } from './services/logoCleanup.service';
 
 const app = express();
 
@@ -72,6 +73,13 @@ app.listen(PORT, () => {
   console.log(`🔍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Environment: ${config.nodeEnv}`);
 });
+
+// Periodic safety net for orphaned logo uploads: an upload happens
+// immediately on file-select in the admin form, before the company record
+// is actually saved, so a cancelled/abandoned edit leaves a file with
+// nothing pointing at it. Company create/update/delete already trigger an
+// immediate sweep; this just catches whatever those miss.
+setInterval(cleanupOrphanedLogos, 60 * 60 * 1000); // hourly
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {

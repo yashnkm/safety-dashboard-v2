@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { cleanupOrphanedLogos } from './logoCleanup.service';
 import bcrypt from 'bcrypt';
 
 export class AdminService {
@@ -48,7 +49,7 @@ export class AdminService {
       throw new AppError(404, 'Company not found');
     }
 
-    return await prisma.company.update({
+    const updated = await prisma.company.update({
       where: { id },
       data: {
         companyName: data.companyName,
@@ -60,6 +61,14 @@ export class AdminService {
         isActive: data.isActive,
       },
     });
+
+    // If the logo changed (replaced or removed), the old file on disk is
+    // now unreferenced. Don't block the response on this housekeeping.
+    if (data.logoUrl !== company.logoUrl) {
+      cleanupOrphanedLogos();
+    }
+
+    return updated;
   }
 
   async deleteCompany(id: string) {
@@ -69,6 +78,10 @@ export class AdminService {
     }
 
     await prisma.company.delete({ where: { id } });
+
+    if (company.logoUrl) {
+      cleanupOrphanedLogos();
+    }
   }
 
   // ==================== SITES ====================
