@@ -44,22 +44,12 @@ export default function ParameterCard({
 
   const status = getStatus();
 
-  // Calculate progress percentage
-  const progressPercentage = (() => {
-    // For incidents, target is always 0 by design — this must run BEFORE the
-    // no-data check below, otherwise a genuinely perfect zero-incident month
-    // is indistinguishable from "no data" and incorrectly shows 0%.
-    if (isIncident) {
-      return actual === 0 ? 100 : 0;
-    }
-
-    // If both target and actual are 0, this means NO DATA - return 0%
-    if (target === 0 && actual === 0) return 0;
-
-    // For regular metrics: avoid division by zero
-    if (target === 0) return 0;
-    return Math.min((actual / target) * 100, 100);
-  })();
+  // The progress bar mirrors the backend-computed `score` directly, rather
+  // than re-deriving its own answer from target/actual/isIncident — that
+  // duplicated logic used to drift out of sync whenever the backend's
+  // scoring rules changed (e.g. leading indicators no longer decaying for
+  // a non-zero count), showing a 0% bar next to a 100% achievement label.
+  const progressPercentage = isNotReported ? 0 : Math.min(Math.max(score, 0), 100);
 
   // Determine progress bar color
   const getProgressColor = () => {

@@ -584,63 +584,50 @@ export default function Dashboard() {
 
     const metric = metricsData[0];
 
-    // Helper function to calculate percentage
-    const calcPercentage = (actual: number, target: number, isIncident: boolean = false, lowerIsBetter: boolean = false) => {
-      // For incidents, target is always 0 by design — a genuinely perfect
-      // zero-incident month must not be treated as "no data" (checked below).
-      if (isIncident) {
-        return actual === 0 ? 100 : 0;
-      }
-      // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0%
-      // This prevents empty data from showing 100%
-      if (target === 0 && actual === 0) {
-        return 0;
-      }
-      if (lowerIsBetter) {
-        // For lower is better: <= target = 100%, > target = (target/actual) * 100
-        if (target === 0) return 0;
-        if (actual <= target) return 100;
-        return (target / actual) * 100;
-      }
-      if (target === 0) return 0;
-      return Math.min((actual / target) * 100, 100);
-    };
+    // Read each parameter's achievement % directly from the backend-computed
+    // score (stored 0-10, scaled to 0-100) instead of re-deriving it here.
+    // A local re-implementation of the scoring rules previously drifted out
+    // of sync with the backend's (e.g. still showing 0% for Near Miss Report
+    // after it stopped being penalized for non-zero counts) — reading the
+    // same value the backend already computed makes that class of bug
+    // impossible.
+    const pct = (score: any) => (Number(score) || 0) * 10;
 
     return [
       // Original 18 parameters
-      { name: 'Man Days', percentage: calcPercentage(metric.manDaysActual || 0, metric.manDaysTarget || 0) },
-      { name: 'Safe Work Hours', percentage: calcPercentage(metric.safeWorkHoursActual || 0, metric.safeWorkHoursTarget || 0) },
-      { name: 'Safety Induction', percentage: calcPercentage(metric.safetyInductionActual || 0, metric.safetyInductionTarget || 0) },
-      { name: 'Toolbox Talk', percentage: calcPercentage(metric.toolBoxTalkActual || 0, metric.toolBoxTalkTarget || 0) },
-      { name: 'Job Training', percentage: calcPercentage(metric.jobSpecificTrainingActual || 0, metric.jobSpecificTrainingTarget || 0) },
-      { name: 'Safety Inspection', percentage: calcPercentage(metric.formalSafetyInspectionActual || 0, metric.formalSafetyInspectionTarget || 0) },
-      { name: 'Non-Comp Raised', percentage: calcPercentage(metric.nonComplianceRaisedActual || 0, metric.nonComplianceRaisedTarget || 0, true) },
-      { name: 'Non-Comp Close', percentage: calcPercentage(metric.nonComplianceCloseActual || 0, metric.nonComplianceCloseTarget || 0) },
-      { name: 'Safety Obs Raised', percentage: calcPercentage(metric.safetyObservationRaisedActual || 0, metric.safetyObservationRaisedTarget || 0) },
-      { name: 'Safety Obs Close', percentage: calcPercentage(metric.safetyObservationCloseActual || 0, metric.safetyObservationCloseTarget || 0) },
-      { name: 'Work Permit', percentage: calcPercentage(metric.workPermitIssuedActual || 0, metric.workPermitIssuedTarget || 0) },
-      { name: 'SWMS', percentage: calcPercentage(metric.safeWorkMethodStatementActual || 0, metric.safeWorkMethodStatementTarget || 0) },
-      { name: 'Mock Drills', percentage: calcPercentage(metric.emergencyMockDrillsActual || 0, metric.emergencyMockDrillsTarget || 0) },
-      { name: 'Internal Audit', percentage: calcPercentage(metric.internalAuditActual || 0, metric.internalAuditTarget || 0) },
-      { name: 'Near Miss', percentage: calcPercentage(metric.nearMissReportActual || 0, metric.nearMissReportTarget || 0, true) },
-      { name: 'First Aid', percentage: calcPercentage(metric.firstAidInjuryActual || 0, metric.firstAidInjuryTarget || 0, true) },
-      { name: 'Med Treatment', percentage: calcPercentage(metric.medicalTreatmentInjuryActual || 0, metric.medicalTreatmentInjuryTarget || 0, true) },
-      { name: 'Lost Time Injury', percentage: calcPercentage(metric.lostTimeInjuryActual || 0, metric.lostTimeInjuryTarget || 0, true) },
+      { name: 'Man Days', percentage: pct(metric.manDaysScore) },
+      { name: 'Safe Work Hours', percentage: pct(metric.safeWorkHoursScore) },
+      { name: 'Safety Induction', percentage: pct(metric.safetyInductionScore) },
+      { name: 'Toolbox Talk', percentage: pct(metric.toolBoxTalkScore) },
+      { name: 'Job Training', percentage: pct(metric.jobSpecificTrainingScore) },
+      { name: 'Safety Inspection', percentage: pct(metric.formalSafetyInspectionScore) },
+      { name: 'Non-Comp Raised', percentage: pct(metric.nonComplianceRaisedScore) },
+      { name: 'Non-Comp Close', percentage: pct(metric.nonComplianceCloseScore) },
+      { name: 'Safety Obs Raised', percentage: pct(metric.safetyObservationRaisedScore) },
+      { name: 'Safety Obs Close', percentage: pct(metric.safetyObservationCloseScore) },
+      { name: 'Work Permit', percentage: pct(metric.workPermitIssuedScore) },
+      { name: 'SWMS', percentage: pct(metric.safeWorkMethodStatementScore) },
+      { name: 'Mock Drills', percentage: pct(metric.emergencyMockDrillsScore) },
+      { name: 'Internal Audit', percentage: pct(metric.internalAuditScore) },
+      { name: 'Near Miss', percentage: pct(metric.nearMissReportScore) },
+      { name: 'First Aid', percentage: pct(metric.firstAidInjuryScore) },
+      { name: 'Med Treatment', percentage: pct(metric.medicalTreatmentInjuryScore) },
+      { name: 'Lost Time Injury', percentage: pct(metric.lostTimeInjuryScore) },
       // New 14 parameters
-      { name: 'Recordable Incidents', percentage: calcPercentage(metric.recordableIncidentsActual || 0, metric.recordableIncidentsTarget || 0, true) },
-      { name: 'PPE Compliance %', percentage: calcPercentage(metric.ppeComplianceRateActual || 0, metric.ppeComplianceRateTarget || 0) },
-      { name: 'PPE Observations', percentage: calcPercentage(metric.ppeObservationsActual || 0, metric.ppeObservationsTarget || 0) },
-      { name: 'Workforce Trained %', percentage: calcPercentage(metric.workforceTrainedActual || 0, metric.workforceTrainedTarget || 0) },
-      { name: 'Upcoming Trainings', percentage: calcPercentage(metric.upcomingTrainingsActual || 0, metric.upcomingTrainingsTarget || 0) },
-      { name: 'Overdue Trainings', percentage: calcPercentage(metric.overdueTrainingsActual || 0, metric.overdueTrainingsTarget || 0, true) },
-      { name: 'Waste Generated', percentage: calcPercentage(metric.wasteGeneratedActual || 0, metric.wasteGeneratedTarget || 0, false, true) },
-      { name: 'Waste Disposed', percentage: calcPercentage(metric.wasteDisposedActual || 0, metric.wasteDisposedTarget || 0) },
-      { name: 'Energy Consumption', percentage: calcPercentage(metric.energyConsumptionActual || 0, metric.energyConsumptionTarget || 0, false, true) },
-      { name: 'Water Consumption', percentage: calcPercentage(metric.waterConsumptionActual || 0, metric.waterConsumptionTarget || 0, false, true) },
-      { name: 'Spills Incidents', percentage: calcPercentage(metric.spillsIncidentsActual || 0, metric.spillsIncidentsTarget || 0, true) },
-      { name: 'Environmental Incidents', percentage: calcPercentage(metric.environmentalIncidentsActual || 0, metric.environmentalIncidentsTarget || 0, true) },
-      { name: 'Health Checkup %', percentage: calcPercentage(metric.healthCheckupComplianceActual || 0, metric.healthCheckupComplianceTarget || 0) },
-      { name: 'Water Quality Tests', percentage: calcPercentage(metric.waterQualityTestActual || 0, metric.waterQualityTestTarget || 0) },
+      { name: 'Recordable Incidents', percentage: pct(metric.recordableIncidentsScore) },
+      { name: 'PPE Compliance %', percentage: pct(metric.ppeComplianceRateScore) },
+      { name: 'PPE Observations', percentage: pct(metric.ppeObservationsScore) },
+      { name: 'Workforce Trained %', percentage: pct(metric.workforceTrainedScore) },
+      { name: 'Upcoming Trainings', percentage: pct(metric.upcomingTrainingsScore) },
+      { name: 'Overdue Trainings', percentage: pct(metric.overdueTrainingsScore) },
+      { name: 'Waste Generated', percentage: pct(metric.wasteGeneratedScore) },
+      { name: 'Waste Disposed', percentage: pct(metric.wasteDisposedScore) },
+      { name: 'Energy Consumption', percentage: pct(metric.energyConsumptionScore) },
+      { name: 'Water Consumption', percentage: pct(metric.waterConsumptionScore) },
+      { name: 'Spills Incidents', percentage: pct(metric.spillsIncidentsScore) },
+      { name: 'Environmental Incidents', percentage: pct(metric.environmentalIncidentsScore) },
+      { name: 'Health Checkup %', percentage: pct(metric.healthCheckupComplianceScore) },
+      { name: 'Water Quality Tests', percentage: pct(metric.waterQualityTestScore) },
     ];
   };
 

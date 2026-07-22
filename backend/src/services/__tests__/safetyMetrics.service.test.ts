@@ -94,6 +94,14 @@ describe('calculateParameterScore', () => {
     expect(service.calculateParameterScore(0, 0, 2, false, false)).toBe(0);
   });
 
+  it('leading indicators (e.g. Near Miss Report) never decay for a non-zero count', () => {
+    // Unlike true incidents, reporting more shouldn't hurt the score - both
+    // zero and non-zero counts score full weight.
+    expect(service.calculateParameterScore(0, 0, 8, true, false, false, true)).toBe(8);
+    expect(service.calculateParameterScore(0, 1, 8, true, false, false, true)).toBe(8);
+    expect(service.calculateParameterScore(0, 45, 8, true, false, false, true)).toBe(8);
+  });
+
   it('awards full weight when target equals actual (both > 0)', () => {
     expect(service.calculateParameterScore(100, 100, 2, false, false)).toBe(2);
   });

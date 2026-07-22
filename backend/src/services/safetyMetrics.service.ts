@@ -312,7 +312,8 @@ export class SafetyMetricsService {
     weight: number,
     isIncident: boolean = false,
     lowerIsBetter: boolean = false,
-    blankTargetAwardsFullCredit: boolean = false
+    blankTargetAwardsFullCredit: boolean = false,
+    leadingIndicator: boolean = false
   ): number {
     // For incident metrics, target is always 0 by design — "zero incidents"
     // is the goal, not missing data. This must run BEFORE the no-data guard
@@ -320,11 +321,16 @@ export class SafetyMetricsService {
     // actual=0) is indistinguishable from "no data entered" and incorrectly
     // scores 0 instead of full weight. Record-level emptiness (every one of
     // the 32 parameters at 0) is caught separately by hasNoData().
-    //
-    // Non-zero counts decay smoothly (weight / (1 + actual)) instead of
-    // dropping straight to 0, so severity is distinguishable: 1 incident
-    // still scores meaningfully higher than 45 of the same type.
     if (isIncident) {
+      // Leading indicators (currently: Near Miss Report) never get punished
+      // for a non-zero count — more reporting reflects a stronger safety
+      // culture, so it always scores full weight, the same as zero reports.
+      if (leadingIndicator) {
+        return weight;
+      }
+      // Non-zero counts decay smoothly (weight / (1 + actual)) instead of
+      // dropping straight to 0, so severity is distinguishable: 1 incident
+      // still scores meaningfully higher than 45 of the same type.
       return actual === 0 ? weight : weight / (1 + actual);
     }
 
@@ -767,7 +773,14 @@ export class SafetyMetricsService {
       { target: 'overdueTrainingsTarget', actual: 'overdueTrainingsActual', score: 'overdueTrainingsScore', weight: this.PARAMETER_WEIGHTS.overdueTrainings, isIncident: true, lowerIsBetter: false },
 
       // Critical Incidents (8 pts each) - Binary
-      { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: this.PARAMETER_WEIGHTS.nearMissReport, isIncident: true, lowerIsBetter: false },
+      //
+      // Near Miss Report stays on the incident code path (target is always 0
+      // by design, so actual=0 still unambiguously means "no data" isn't a
+      // concern here) but is marked as a leading indicator: unlike its
+      // neighbors below, more reporting reflects a stronger safety culture
+      // and should be encouraged, not punished. leadingIndicator skips the
+      // severity decay so a non-zero count never drags the score down.
+      { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: this.PARAMETER_WEIGHTS.nearMissReport, isIncident: true, lowerIsBetter: false, leadingIndicator: true },
       { target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore', weight: this.PARAMETER_WEIGHTS.firstAidInjury, isIncident: true, lowerIsBetter: false },
       { target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore', weight: this.PARAMETER_WEIGHTS.medicalTreatmentInjury, isIncident: true, lowerIsBetter: false },
       { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: this.PARAMETER_WEIGHTS.lostTimeInjury, isIncident: true, lowerIsBetter: false },
@@ -787,7 +800,7 @@ export class SafetyMetricsService {
     ];
 
     // Process each parameter
-    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit }) => {
+    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator }) => {
       if (data[target] !== undefined && data[actual] !== undefined) {
         const targetVal = Number(data[target]) || 0;
         const actualVal = Number(data[actual]) || 0;
@@ -796,7 +809,7 @@ export class SafetyMetricsService {
         processedData[actual] = actualVal;
 
         // Calculate weighted score but store as 0-10 for DB compatibility
-        const weightedScore = this.calculateParameterScore(targetVal, actualVal, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit);
+        const weightedScore = this.calculateParameterScore(targetVal, actualVal, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator);
         // Convert back to 0-10 scale for storage (will be converted back when calculating total)
         processedData[score] = (weightedScore / weight) * 10;
       }
