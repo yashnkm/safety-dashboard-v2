@@ -185,6 +185,11 @@ export class SafetyMetricsService {
       throw new AppError(403, 'Access denied to this site');
     }
 
+    const validationErrors = this.validateParameterValues(data);
+    if (validationErrors.length > 0) {
+      throw new AppError(400, `Invalid data: ${validationErrors.join('; ')}`);
+    }
+
     // Derive every parameter's score from its target/actual values — never
     // trust *Score fields supplied directly in the request body, the same
     // way bulkImportMetrics() already does for Excel imports.
@@ -414,6 +419,55 @@ export class SafetyMetricsService {
     ['healthCheckupComplianceTarget', 'healthCheckupComplianceActual'],
     ['waterQualityTestTarget', 'waterQualityTestActual'],
   ];
+
+  /**
+   * Target/actual pairs that represent a percentage (0-100), not a raw count.
+   */
+  private readonly PERCENTAGE_FIELDS: [string, string][] = [
+    ['ppeComplianceRateTarget', 'ppeComplianceRateActual'],
+    ['workforceTrainedTarget', 'workforceTrainedActual'],
+    ['healthCheckupComplianceTarget', 'healthCheckupComplianceActual'],
+  ];
+
+  /**
+   * Catches impossible values before they're saved — negative counts,
+   * non-numeric input, or a percentage field outside 0-100. Returns a list
+   * of human-readable problems; an empty list means the row is clean.
+   * Deliberately does NOT flag "actual far exceeds target" as an error —
+   * a genuinely bad month (e.g. way more non-compliances than planned) is
+   * real data, not an impossible value, so it's left for the scoring engine
+   * to reflect rather than rejected here.
+   */
+  private validateParameterValues(data: any): string[] {
+    const errors: string[] = [];
+    const percentageFieldNames = new Set(this.PERCENTAGE_FIELDS.flat());
+
+    for (const [targetField, actualField] of this.TARGET_ACTUAL_FIELDS) {
+      for (const field of [targetField, actualField]) {
+        if (data[field] === undefined || data[field] === null || data[field] === '') {
+          continue; // absent fields are handled elsewhere (treated as 0 / no data)
+        }
+
+        const value = Number(data[field]);
+
+        if (!Number.isFinite(value)) {
+          errors.push(`${field}: "${data[field]}" is not a valid number`);
+          continue;
+        }
+
+        if (value < 0) {
+          errors.push(`${field}: ${value} cannot be negative`);
+          continue;
+        }
+
+        if (percentageFieldNames.has(field) && value > 100) {
+          errors.push(`${field}: ${value} exceeds 100% — this parameter is a percentage`);
+        }
+      }
+    }
+
+    return errors;
+  }
 
   /**
    * True only if every target and actual value across all 32 parameters is 0 —
@@ -679,6 +733,13 @@ export class SafetyMetricsService {
         if (!month) {
           results.failed++;
           results.errors.push({ month: 'unknown', error: 'Month is required' });
+          continue;
+        }
+
+        const validationErrors = this.validateParameterValues(data);
+        if (validationErrors.length > 0) {
+          results.failed++;
+          results.errors.push({ month, error: validationErrors.join('; ') });
           continue;
         }
 

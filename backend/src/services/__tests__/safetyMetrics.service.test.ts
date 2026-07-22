@@ -162,6 +162,48 @@ describe('hasNoData', () => {
   });
 });
 
+describe('validateParameterValues', () => {
+  it('accepts a clean, fully-populated row with no errors', () => {
+    expect(service.validateParameterValues({ manDaysTarget: 1000, manDaysActual: 950 })).toEqual([]);
+  });
+
+  it('flags negative counts', () => {
+    const errors = service.validateParameterValues({ lostTimeInjuryActual: -1 });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/lostTimeInjuryActual/);
+    expect(errors[0]).toMatch(/negative/);
+  });
+
+  it('flags non-numeric values', () => {
+    const errors = service.validateParameterValues({ manDaysActual: 'fifty' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/not a valid number/);
+  });
+
+  it('flags a percentage field over 100', () => {
+    const errors = service.validateParameterValues({ ppeComplianceRateActual: 150 });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/exceeds 100%/);
+  });
+
+  it('does not apply the 100-cap to non-percentage fields', () => {
+    expect(service.validateParameterValues({ manDaysActual: 5000 })).toEqual([]);
+  });
+
+  it('ignores absent, null, or empty-string fields rather than flagging them', () => {
+    expect(service.validateParameterValues({ manDaysActual: undefined, manDaysTarget: null, toolBoxTalkActual: '' })).toEqual([]);
+  });
+
+  it('does not flag actual far exceeding target as an error - that is real data, not an impossible value', () => {
+    expect(service.validateParameterValues({ nonComplianceRaisedTarget: 0, nonComplianceRaisedActual: 500 })).toEqual([]);
+  });
+
+  it('collects multiple errors from the same row', () => {
+    const errors = service.validateParameterValues({ manDaysActual: -5, ppeComplianceRateActual: 200 });
+    expect(errors).toHaveLength(2);
+  });
+});
+
 describe('calculateMetricScores', () => {
   it('scores a completely empty record as 0/LOW, never a false 100%', () => {
     // Regression guard: this used to blindly trust whatever was sitting in
