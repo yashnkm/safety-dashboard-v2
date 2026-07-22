@@ -352,7 +352,14 @@ export class SafetyMetricsService {
 
     // For positive metrics (higher actual is better)
     // Ratio-based scoring with max = weight
-    if (target === 0) return 0; // Avoid division by zero
+    if (target === 0) {
+      // No target was ever set for this field, so there's nothing to compute
+      // a ratio against. actual > 0 here is unambiguous real activity (the
+      // target=0/actual=0 "no data" case is already handled above) — award
+      // full credit rather than dividing by zero and flooring to 0, which
+      // used to punish genuine activity just because a target was blank.
+      return actual > 0 ? weight : 0;
+    }
 
     const ratio = actual / target;
     const score = ratio * weight;

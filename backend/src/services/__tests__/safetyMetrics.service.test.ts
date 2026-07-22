@@ -107,8 +107,15 @@ describe('calculateParameterScore', () => {
     expect(service.calculateParameterScore(100, 150, 2, false, false)).toBe(2);
   });
 
-  it('returns 0 for a positive-ratio parameter with target=0 (avoids div by zero)', () => {
-    expect(service.calculateParameterScore(0, 5, 2, false, false)).toBe(0);
+  it('awards full weight for a positive-ratio parameter with target=0 but real actual activity', () => {
+    // No target was ever set, but actual > 0 is unambiguous real data (e.g.
+    // Safety Observation Raised logged 136 actual with no target entered) -
+    // don't divide by zero and punish real activity with a 0 score.
+    expect(service.calculateParameterScore(0, 5, 2, false, false)).toBe(2);
+  });
+
+  it('still returns 0 for a positive-ratio parameter with target=0 and actual=0 (no data)', () => {
+    expect(service.calculateParameterScore(0, 0, 2, false, false)).toBe(0);
   });
 
   it('lowerIsBetter: awards full weight when actual is at or below target', () => {
