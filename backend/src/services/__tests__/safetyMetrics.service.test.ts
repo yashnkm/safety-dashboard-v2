@@ -107,15 +107,24 @@ describe('calculateParameterScore', () => {
     expect(service.calculateParameterScore(100, 150, 2, false, false)).toBe(2);
   });
 
-  it('awards full weight for a positive-ratio parameter with target=0 but real actual activity', () => {
-    // No target was ever set, but actual > 0 is unambiguous real data (e.g.
-    // Safety Observation Raised logged 136 actual with no target entered) -
-    // don't divide by zero and punish real activity with a 0 score.
-    expect(service.calculateParameterScore(0, 5, 2, false, false)).toBe(2);
+  it('returns 0 by default for a positive-ratio parameter with target=0, even with real actual activity', () => {
+    // blankTargetAwardsFullCredit defaults to false - most ratio parameters
+    // (e.g. Upcoming Trainings) have no basis for treating "more" as
+    // automatically good, so a blank target stays a 0 until a real target
+    // is configured.
+    expect(service.calculateParameterScore(0, 5, 2, false, false)).toBe(0);
   });
 
-  it('still returns 0 for a positive-ratio parameter with target=0 and actual=0 (no data)', () => {
-    expect(service.calculateParameterScore(0, 0, 2, false, false)).toBe(0);
+  it('awards full weight for a positive-ratio parameter with target=0 and real actual activity, when opted in', () => {
+    // blankTargetAwardsFullCredit=true is reserved for leading indicators
+    // like Safety Observation Raised / PPE Observations, where more
+    // reporting is defensibly good and there's no target to compute a
+    // ratio against.
+    expect(service.calculateParameterScore(0, 5, 2, false, false, true)).toBe(2);
+  });
+
+  it('still returns 0 for a positive-ratio parameter with target=0 and actual=0 (no data), even when opted in', () => {
+    expect(service.calculateParameterScore(0, 0, 2, false, false, true)).toBe(0);
   });
 
   it('lowerIsBetter: awards full weight when actual is at or below target', () => {

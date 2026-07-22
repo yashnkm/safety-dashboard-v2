@@ -311,7 +311,8 @@ export class SafetyMetricsService {
     actual: number,
     weight: number,
     isIncident: boolean = false,
-    lowerIsBetter: boolean = false
+    lowerIsBetter: boolean = false,
+    blankTargetAwardsFullCredit: boolean = false
   ): number {
     // For incident metrics, target is always 0 by design — "zero incidents"
     // is the goal, not missing data. This must run BEFORE the no-data guard
@@ -354,11 +355,14 @@ export class SafetyMetricsService {
     // Ratio-based scoring with max = weight
     if (target === 0) {
       // No target was ever set for this field, so there's nothing to compute
-      // a ratio against. actual > 0 here is unambiguous real activity (the
-      // target=0/actual=0 "no data" case is already handled above) — award
-      // full credit rather than dividing by zero and flooring to 0, which
-      // used to punish genuine activity just because a target was blank.
-      return actual > 0 ? weight : 0;
+      // a ratio against. This full-credit-for-real-activity treatment is
+      // deliberately opt-in (blankTargetAwardsFullCredit) rather than applied
+      // to every ratio parameter: it's only justified for leading indicators
+      // like Safety Observation Raised / PPE Observations, where "more" is
+      // defensibly good. For most other parameters (e.g. Upcoming Trainings)
+      // there's no such argument, so they keep the old, safer default of 0
+      // until a real target is configured.
+      return blankTargetAwardsFullCredit && actual > 0 ? weight : 0;
     }
 
     const ratio = actual / target;
@@ -740,9 +744,11 @@ export class SafetyMetricsService {
       { target: 'formalSafetyInspectionTarget', actual: 'formalSafetyInspectionActual', score: 'formalSafetyInspectionScore', weight: this.PARAMETER_WEIGHTS.formalSafetyInspection, isIncident: false, lowerIsBetter: false },
       { target: 'emergencyMockDrillsTarget', actual: 'emergencyMockDrillsActual', score: 'emergencyMockDrillsScore', weight: this.PARAMETER_WEIGHTS.emergencyMockDrills, isIncident: false, lowerIsBetter: false },
       { target: 'internalAuditTarget', actual: 'internalAuditActual', score: 'internalAuditScore', weight: this.PARAMETER_WEIGHTS.internalAudit, isIncident: false, lowerIsBetter: false },
-      { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: this.PARAMETER_WEIGHTS.safetyObservationRaised, isIncident: false, lowerIsBetter: false },
+      // Leading indicators where "more reporting" is defensibly good, so a
+      // blank target with real activity earns full credit instead of 0.
+      { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: this.PARAMETER_WEIGHTS.safetyObservationRaised, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true },
       { target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore', weight: this.PARAMETER_WEIGHTS.workforceTrainedPercent, isIncident: false, lowerIsBetter: false }, // NEW
-      { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: this.PARAMETER_WEIGHTS.ppeObservations, isIncident: false, lowerIsBetter: false }, // NEW
+      { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: this.PARAMETER_WEIGHTS.ppeObservations, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
       { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: this.PARAMETER_WEIGHTS.upcomingTrainings, isIncident: false, lowerIsBetter: false }, // NEW
 
       // Documentation (1 pt each)
@@ -781,7 +787,7 @@ export class SafetyMetricsService {
     ];
 
     // Process each parameter
-    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter }) => {
+    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit }) => {
       if (data[target] !== undefined && data[actual] !== undefined) {
         const targetVal = Number(data[target]) || 0;
         const actualVal = Number(data[actual]) || 0;
@@ -790,7 +796,7 @@ export class SafetyMetricsService {
         processedData[actual] = actualVal;
 
         // Calculate weighted score but store as 0-10 for DB compatibility
-        const weightedScore = this.calculateParameterScore(targetVal, actualVal, weight, isIncident, lowerIsBetter);
+        const weightedScore = this.calculateParameterScore(targetVal, actualVal, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit);
         // Convert back to 0-10 scale for storage (will be converted back when calculating total)
         processedData[score] = (weightedScore / weight) * 10;
       }
