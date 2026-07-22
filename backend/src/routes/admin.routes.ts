@@ -47,6 +47,21 @@ router.delete(
   asyncHandler(adminController.deleteCompany.bind(adminController))
 );
 
+// ==================== COMPANY SETTINGS (Parameter Weights) ====================
+// SUPER_ADMIN and ADMIN can view/edit their own company's weights
+
+router.get(
+  '/companies/:id/settings',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  asyncHandler(adminController.getCompanySettings.bind(adminController))
+);
+
+router.put(
+  '/companies/:id/settings',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  asyncHandler(adminController.updateCompanySettings.bind(adminController))
+);
+
 // ==================== SITES ====================
 // SUPER_ADMIN and ADMIN can manage sites
 

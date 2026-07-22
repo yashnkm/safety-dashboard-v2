@@ -77,6 +77,46 @@ export class AdminController {
     });
   }
 
+  // ==================== COMPANY SETTINGS (Parameter Weights) ====================
+
+  /**
+   * GET /api/admin/companies/:id/settings
+   * Get a company's configured parameter weights (or the defaults if none set)
+   */
+  async getCompanySettings(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const settings = await adminService.getCompanySettings(id, req.user!.companyId, req.user!.role);
+    res.json({
+      status: 'success',
+      data: settings,
+    });
+  }
+
+  /**
+   * PUT /api/admin/companies/:id/settings
+   * Update a company's parameter weights - must sum to 100
+   */
+  async updateCompanySettings(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const { weights } = req.body;
+
+    if (!weights || typeof weights !== 'object') {
+      throw new AppError(400, 'weights object is required');
+    }
+
+    const settings = await adminService.updateCompanySettings(
+      id,
+      weights,
+      req.user!.companyId,
+      req.user!.role,
+      req.user!.id
+    );
+    res.json({
+      status: 'success',
+      data: settings,
+    });
+  }
+
   // ==================== SITES ====================
 
   /**

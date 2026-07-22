@@ -155,6 +155,17 @@ export const adminService = {
     return response.data;
   },
 
+  // Company Settings (Parameter Weights)
+  getCompanySettings: async (companyId: string) => {
+    const response = await api.get(`/admin/companies/${companyId}/settings`);
+    return response.data;
+  },
+
+  updateCompanySettings: async (companyId: string, weights: Record<string, number>) => {
+    const response = await api.put(`/admin/companies/${companyId}/settings`, { weights });
+    return response.data;
+  },
+
   // Sites
   getSites: async (companyId?: string) => {
     const params = companyId ? { companyId } : {};

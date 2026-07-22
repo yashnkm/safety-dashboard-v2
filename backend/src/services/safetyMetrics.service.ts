@@ -92,15 +92,27 @@ export class SafetyMetricsService {
           select: {
             siteName: true,
             siteCode: true,
+            companyId: true,
           },
         },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
 
+    // A SUPER_ADMIN's results can span multiple companies, each with its own
+    // configured weights — fetch each distinct company's weights once rather
+    // than per-record.
+    const distinctCompanyIds = [...new Set(metrics.map((m) => m.site.companyId))];
+    const weightsByCompany = new Map(
+      await Promise.all(
+        distinctCompanyIds.map(async (id) => [id, await this.getCompanyWeights(id)] as const)
+      )
+    );
+
     // Calculate totalScore, percentage, rating, and KPIs dynamically for each metric
     return metrics.map((metric) => {
-      const calculatedScores = this.calculateMetricScores(metric);
+      const weights = weightsByCompany.get(metric.site.companyId) ?? this.getDefaultWeights();
+      const calculatedScores = this.calculateMetricScores(metric, weights);
       const kpis = this.calculateKPIs(metric);
       return {
         ...metric,
@@ -190,13 +202,18 @@ export class SafetyMetricsService {
       throw new AppError(400, `Invalid data: ${validationErrors.join('; ')}`);
     }
 
+    // Use the site's own company's weights (not the caller's — a SUPER_ADMIN
+    // saving into another company's site must still score against that
+    // site's configured weights, not their own).
+    const weights = await this.getCompanyWeights(site.companyId);
+
     // Derive every parameter's score from its target/actual values — never
     // trust *Score fields supplied directly in the request body, the same
     // way bulkImportMetrics() already does for Excel imports.
-    const processedData = this.calculateAllParameterScores(data);
+    const processedData = this.calculateAllParameterScores(data, weights);
 
     // Calculate total score
-    const totalScore = this.calculateTotalScore(processedData);
+    const totalScore = this.calculateTotalScore(processedData, weights);
     const percentage = (totalScore / 100) * 100;
     const rating = this.getRating(percentage);
 
@@ -306,6 +323,96 @@ export class SafetyMetricsService {
     healthCheckupCompliance: 4,
     waterQualityTest: 2,
   };
+
+  /**
+   * Maps each parameter key (as used in PARAMETER_WEIGHTS) to its
+   * CompanySettings column name — the single source of truth for both
+   * reading a company's custom weights and validating/writing an update.
+   */
+  private readonly WEIGHT_FIELD_MAP: [keyof typeof this.PARAMETER_WEIGHTS, string][] = [
+    ['nearMissReport', 'weightNearMissReport'],
+    ['firstAidInjury', 'weightFirstAidInjury'],
+    ['medicalTreatmentInjury', 'weightMedicalTreatmentInjury'],
+    ['lostTimeInjury', 'weightLostTimeInjury'],
+    ['recordableIncidents', 'weightRecordableIncidents'],
+    ['nonComplianceRaised', 'weightNonComplianceRaised'],
+    ['manDays', 'weightManDays'],
+    ['safeWorkHours', 'weightSafeWorkHours'],
+    ['safetyInduction', 'weightSafetyInduction'],
+    ['toolBoxTalk', 'weightToolBoxTalk'],
+    ['jobSpecificTraining', 'weightJobSpecificTraining'],
+    ['formalSafetyInspection', 'weightFormalSafetyInspection'],
+    ['emergencyMockDrills', 'weightEmergencyMockDrills'],
+    ['internalAudit', 'weightInternalAudit'],
+    ['safetyObservationRaised', 'weightSafetyObservationRaised'],
+    ['workforceTrainedPercent', 'weightWorkforceTrainedPercent'],
+    ['ppeObservations', 'weightPpeObservations'],
+    ['upcomingTrainings', 'weightUpcomingTrainings'],
+    ['nonComplianceClose', 'weightNonComplianceClose'],
+    ['safetyObservationClose', 'weightSafetyObservationClose'],
+    ['workPermitIssued', 'weightWorkPermitIssued'],
+    ['safeWorkMethodStatement', 'weightSafeWorkMethodStatement'],
+    ['ppeComplianceRate', 'weightPpeComplianceRate'],
+    ['overdueTrainings', 'weightOverdueTrainings'],
+    ['wasteGenerated', 'weightWasteGenerated'],
+    ['wasteDisposed', 'weightWasteDisposed'],
+    ['energyConsumption', 'weightEnergyConsumption'],
+    ['waterConsumption', 'weightWaterConsumption'],
+    ['spillsIncidents', 'weightSpillsIncidents'],
+    ['environmentalIncidents', 'weightEnvironmentalIncidents'],
+    ['healthCheckupCompliance', 'weightHealthCheckupCompliance'],
+    ['waterQualityTest', 'weightWaterQualityTest'],
+  ];
+
+  /**
+   * The hardcoded weights, exposed for the admin settings UI to show as
+   * defaults for a company that hasn't configured custom weights yet.
+   */
+  getDefaultWeights(): Record<string, number> {
+    return { ...this.PARAMETER_WEIGHTS };
+  }
+
+  /**
+   * Exposes the parameter-key <-> CompanySettings-column mapping so the
+   * admin settings API can read/validate/write weights without duplicating
+   * this list.
+   */
+  getWeightFieldMap(): [string, string][] {
+    return [...this.WEIGHT_FIELD_MAP];
+  }
+
+  /**
+   * A company's effective per-parameter weights: its custom CompanySettings
+   * row if one exists, otherwise the hardcoded defaults. Custom weights that
+   * don't sum to exactly 100 (e.g. an admin data-entry mistake) are scaled
+   * proportionally so the 100-point total the rest of the scoring engine
+   * assumes still holds.
+   */
+  async getCompanyWeights(companyId: string): Promise<Record<string, number>> {
+    const settings = await prisma.companySettings.findUnique({ where: { companyId } });
+    if (!settings) {
+      return this.getDefaultWeights();
+    }
+
+    const raw: Record<string, number> = {};
+    for (const [paramKey, dbField] of this.WEIGHT_FIELD_MAP) {
+      raw[paramKey] = Number((settings as any)[dbField]);
+    }
+
+    const sum = Object.values(raw).reduce((a, b) => a + b, 0);
+    if (!Number.isFinite(sum) || sum <= 0) {
+      return this.getDefaultWeights();
+    }
+    if (Math.abs(sum - 100) < 0.01) {
+      return raw;
+    }
+
+    const normalized: Record<string, number> = {};
+    for (const key of Object.keys(raw)) {
+      normalized[key] = (raw[key] / sum) * 100;
+    }
+    return normalized;
+  }
 
   /**
    * Calculate individual parameter score based on target, actual values, and weight
@@ -486,7 +593,10 @@ export class SafetyMetricsService {
    * Uses weighted sum (not average) matching Excel logic
    * NOW INCLUDES ALL 32 PARAMETERS (18 original + 14 new)
    */
-  private calculateMetricScores(metric: any): { totalScore: number; percentage: number; rating: 'LOW' | 'MEDIUM' | 'HIGH' } {
+  private calculateMetricScores(
+    metric: any,
+    weights: Record<string, number> = this.PARAMETER_WEIGHTS
+  ): { totalScore: number; percentage: number; rating: 'LOW' | 'MEDIUM' | 'HIGH' } {
     // A record with zero target AND zero actual across every one of the 32
     // parameters has no real data entered for that month. Never award a score
     // based on whatever happens to be sitting in the stored *Score columns in
@@ -503,52 +613,52 @@ export class SafetyMetricsService {
     let totalScore = 0;
 
     // Critical Incidents (40 points max) - stored as 0-10, multiply by weight/10
-    totalScore += Number(metric.nearMissReportScore || 0) * (this.PARAMETER_WEIGHTS.nearMissReport / 10);
-    totalScore += Number(metric.firstAidInjuryScore || 0) * (this.PARAMETER_WEIGHTS.firstAidInjury / 10);
-    totalScore += Number(metric.medicalTreatmentInjuryScore || 0) * (this.PARAMETER_WEIGHTS.medicalTreatmentInjury / 10);
-    totalScore += Number(metric.lostTimeInjuryScore || 0) * (this.PARAMETER_WEIGHTS.lostTimeInjury / 10);
-    totalScore += Number(metric.recordableIncidentsScore || 0) * (this.PARAMETER_WEIGHTS.recordableIncidents / 10); // NEW
+    totalScore += Number(metric.nearMissReportScore || 0) * (weights.nearMissReport / 10);
+    totalScore += Number(metric.firstAidInjuryScore || 0) * (weights.firstAidInjury / 10);
+    totalScore += Number(metric.medicalTreatmentInjuryScore || 0) * (weights.medicalTreatmentInjury / 10);
+    totalScore += Number(metric.lostTimeInjuryScore || 0) * (weights.lostTimeInjury / 10);
+    totalScore += Number(metric.recordableIncidentsScore || 0) * (weights.recordableIncidents / 10); // NEW
 
     // Compliance Issues (4 points max)
-    totalScore += Number(metric.nonComplianceRaisedScore || 0) * (this.PARAMETER_WEIGHTS.nonComplianceRaised / 10);
+    totalScore += Number(metric.nonComplianceRaisedScore || 0) * (weights.nonComplianceRaised / 10);
 
     // Core Performance (24 points max)
-    totalScore += Number(metric.manDaysScore || 0) * (this.PARAMETER_WEIGHTS.manDays / 10);
-    totalScore += Number(metric.safeWorkHoursScore || 0) * (this.PARAMETER_WEIGHTS.safeWorkHours / 10);
-    totalScore += Number(metric.safetyInductionScore || 0) * (this.PARAMETER_WEIGHTS.safetyInduction / 10);
-    totalScore += Number(metric.toolBoxTalkScore || 0) * (this.PARAMETER_WEIGHTS.toolBoxTalk / 10);
-    totalScore += Number(metric.jobSpecificTrainingScore || 0) * (this.PARAMETER_WEIGHTS.jobSpecificTraining / 10);
-    totalScore += Number(metric.formalSafetyInspectionScore || 0) * (this.PARAMETER_WEIGHTS.formalSafetyInspection / 10);
-    totalScore += Number(metric.emergencyMockDrillsScore || 0) * (this.PARAMETER_WEIGHTS.emergencyMockDrills / 10);
-    totalScore += Number(metric.internalAuditScore || 0) * (this.PARAMETER_WEIGHTS.internalAudit / 10);
-    totalScore += Number(metric.safetyObservationRaisedScore || 0) * (this.PARAMETER_WEIGHTS.safetyObservationRaised / 10);
-    totalScore += Number(metric.workforceTrainedScore || 0) * (this.PARAMETER_WEIGHTS.workforceTrainedPercent / 10); // NEW
-    totalScore += Number(metric.ppeObservationsScore || 0) * (this.PARAMETER_WEIGHTS.ppeObservations / 10); // NEW
-    totalScore += Number(metric.upcomingTrainingsScore || 0) * (this.PARAMETER_WEIGHTS.upcomingTrainings / 10); // NEW
+    totalScore += Number(metric.manDaysScore || 0) * (weights.manDays / 10);
+    totalScore += Number(metric.safeWorkHoursScore || 0) * (weights.safeWorkHours / 10);
+    totalScore += Number(metric.safetyInductionScore || 0) * (weights.safetyInduction / 10);
+    totalScore += Number(metric.toolBoxTalkScore || 0) * (weights.toolBoxTalk / 10);
+    totalScore += Number(metric.jobSpecificTrainingScore || 0) * (weights.jobSpecificTraining / 10);
+    totalScore += Number(metric.formalSafetyInspectionScore || 0) * (weights.formalSafetyInspection / 10);
+    totalScore += Number(metric.emergencyMockDrillsScore || 0) * (weights.emergencyMockDrills / 10);
+    totalScore += Number(metric.internalAuditScore || 0) * (weights.internalAudit / 10);
+    totalScore += Number(metric.safetyObservationRaisedScore || 0) * (weights.safetyObservationRaised / 10);
+    totalScore += Number(metric.workforceTrainedScore || 0) * (weights.workforceTrainedPercent / 10); // NEW
+    totalScore += Number(metric.ppeObservationsScore || 0) * (weights.ppeObservations / 10); // NEW
+    totalScore += Number(metric.upcomingTrainingsScore || 0) * (weights.upcomingTrainings / 10); // NEW
 
     // Documentation (4 points max)
-    totalScore += Number(metric.nonComplianceCloseScore || 0) * (this.PARAMETER_WEIGHTS.nonComplianceClose / 10);
-    totalScore += Number(metric.safetyObservationCloseScore || 0) * (this.PARAMETER_WEIGHTS.safetyObservationClose / 10);
-    totalScore += Number(metric.workPermitIssuedScore || 0) * (this.PARAMETER_WEIGHTS.workPermitIssued / 10);
-    totalScore += Number(metric.safeWorkMethodStatementScore || 0) * (this.PARAMETER_WEIGHTS.safeWorkMethodStatement / 10);
+    totalScore += Number(metric.nonComplianceCloseScore || 0) * (weights.nonComplianceClose / 10);
+    totalScore += Number(metric.safetyObservationCloseScore || 0) * (weights.safetyObservationClose / 10);
+    totalScore += Number(metric.workPermitIssuedScore || 0) * (weights.workPermitIssued / 10);
+    totalScore += Number(metric.safeWorkMethodStatementScore || 0) * (weights.safeWorkMethodStatement / 10);
 
     // PPE Compliance (2 points max) - NEW
-    totalScore += Number(metric.ppeComplianceRateScore || 0) * (this.PARAMETER_WEIGHTS.ppeComplianceRate / 10);
+    totalScore += Number(metric.ppeComplianceRateScore || 0) * (weights.ppeComplianceRate / 10);
 
     // Training Management (2 points max) - NEW
-    totalScore += Number(metric.overdueTrainingsScore || 0) * (this.PARAMETER_WEIGHTS.overdueTrainings / 10);
+    totalScore += Number(metric.overdueTrainingsScore || 0) * (weights.overdueTrainings / 10);
 
     // Environment Metrics (12 points max) - NEW
-    totalScore += Number(metric.wasteGeneratedScore || 0) * (this.PARAMETER_WEIGHTS.wasteGenerated / 10);
-    totalScore += Number(metric.wasteDisposedScore || 0) * (this.PARAMETER_WEIGHTS.wasteDisposed / 10);
-    totalScore += Number(metric.energyConsumptionScore || 0) * (this.PARAMETER_WEIGHTS.energyConsumption / 10);
-    totalScore += Number(metric.waterConsumptionScore || 0) * (this.PARAMETER_WEIGHTS.waterConsumption / 10);
-    totalScore += Number(metric.spillsIncidentsScore || 0) * (this.PARAMETER_WEIGHTS.spillsIncidents / 10);
-    totalScore += Number(metric.environmentalIncidentsScore || 0) * (this.PARAMETER_WEIGHTS.environmentalIncidents / 10);
+    totalScore += Number(metric.wasteGeneratedScore || 0) * (weights.wasteGenerated / 10);
+    totalScore += Number(metric.wasteDisposedScore || 0) * (weights.wasteDisposed / 10);
+    totalScore += Number(metric.energyConsumptionScore || 0) * (weights.energyConsumption / 10);
+    totalScore += Number(metric.waterConsumptionScore || 0) * (weights.waterConsumption / 10);
+    totalScore += Number(metric.spillsIncidentsScore || 0) * (weights.spillsIncidents / 10);
+    totalScore += Number(metric.environmentalIncidentsScore || 0) * (weights.environmentalIncidents / 10);
 
     // Health & Hygiene (4 points max) - NEW
-    totalScore += Number(metric.healthCheckupComplianceScore || 0) * (this.PARAMETER_WEIGHTS.healthCheckupCompliance / 10);
-    totalScore += Number(metric.waterQualityTestScore || 0) * (this.PARAMETER_WEIGHTS.waterQualityTest / 10);
+    totalScore += Number(metric.healthCheckupComplianceScore || 0) * (weights.healthCheckupCompliance / 10);
+    totalScore += Number(metric.waterQualityTestScore || 0) * (weights.waterQualityTest / 10);
 
     // Total is already a percentage (0-100 scale)
     const percentage = totalScore;
@@ -613,10 +723,10 @@ export class SafetyMetricsService {
   /**
    * Calculate total score based on all parameters
    */
-  private calculateTotalScore(data: any): number {
+  private calculateTotalScore(data: any, weights: Record<string, number> = this.PARAMETER_WEIGHTS): number {
     // Use the new calculation method
     const metric = { ...data };
-    const calculated = this.calculateMetricScores(metric);
+    const calculated = this.calculateMetricScores(metric, weights);
     return calculated.totalScore;
   }
 
@@ -725,6 +835,10 @@ export class SafetyMetricsService {
       errors: [] as any[],
     };
 
+    // Fetched once for the whole batch — every row in an import belongs to
+    // the same site, so the same company's weights apply throughout.
+    const weights = await this.getCompanyWeights(site.companyId);
+
     // Process each month's data
     for (const monthData of metricsData) {
       try {
@@ -744,10 +858,10 @@ export class SafetyMetricsService {
         }
 
         // Calculate individual parameter scores
-        const processedData = this.calculateAllParameterScores(data);
+        const processedData = this.calculateAllParameterScores(data, weights);
 
         // Calculate total score
-        const totalScore = this.calculateTotalScore(processedData);
+        const totalScore = this.calculateTotalScore(processedData, weights);
         const percentage = (totalScore / 100) * 100;
         const rating = this.getRating(percentage);
 
@@ -797,41 +911,41 @@ export class SafetyMetricsService {
    * Calculate scores for all parameters with proper weights
    * NOW INCLUDES ALL 32 PARAMETERS (18 original + 14 new)
    */
-  private calculateAllParameterScores(data: any): any {
+  private calculateAllParameterScores(data: any, weights: Record<string, number> = this.PARAMETER_WEIGHTS): any {
     const processedData: any = {};
 
     // Define parameter mappings (field name -> weight -> isIncident flag -> lowerIsBetter flag)
     const parameters = [
       // Core Performance (2 pts each)
-      { target: 'manDaysTarget', actual: 'manDaysActual', score: 'manDaysScore', weight: this.PARAMETER_WEIGHTS.manDays, isIncident: false, lowerIsBetter: false },
-      { target: 'safeWorkHoursTarget', actual: 'safeWorkHoursActual', score: 'safeWorkHoursScore', weight: this.PARAMETER_WEIGHTS.safeWorkHours, isIncident: false, lowerIsBetter: false },
-      { target: 'safetyInductionTarget', actual: 'safetyInductionActual', score: 'safetyInductionScore', weight: this.PARAMETER_WEIGHTS.safetyInduction, isIncident: false, lowerIsBetter: false },
-      { target: 'toolBoxTalkTarget', actual: 'toolBoxTalkActual', score: 'toolBoxTalkScore', weight: this.PARAMETER_WEIGHTS.toolBoxTalk, isIncident: false, lowerIsBetter: false },
-      { target: 'jobSpecificTrainingTarget', actual: 'jobSpecificTrainingActual', score: 'jobSpecificTrainingScore', weight: this.PARAMETER_WEIGHTS.jobSpecificTraining, isIncident: false, lowerIsBetter: false },
-      { target: 'formalSafetyInspectionTarget', actual: 'formalSafetyInspectionActual', score: 'formalSafetyInspectionScore', weight: this.PARAMETER_WEIGHTS.formalSafetyInspection, isIncident: false, lowerIsBetter: false },
-      { target: 'emergencyMockDrillsTarget', actual: 'emergencyMockDrillsActual', score: 'emergencyMockDrillsScore', weight: this.PARAMETER_WEIGHTS.emergencyMockDrills, isIncident: false, lowerIsBetter: false },
-      { target: 'internalAuditTarget', actual: 'internalAuditActual', score: 'internalAuditScore', weight: this.PARAMETER_WEIGHTS.internalAudit, isIncident: false, lowerIsBetter: false },
+      { target: 'manDaysTarget', actual: 'manDaysActual', score: 'manDaysScore', weight: weights.manDays, isIncident: false, lowerIsBetter: false },
+      { target: 'safeWorkHoursTarget', actual: 'safeWorkHoursActual', score: 'safeWorkHoursScore', weight: weights.safeWorkHours, isIncident: false, lowerIsBetter: false },
+      { target: 'safetyInductionTarget', actual: 'safetyInductionActual', score: 'safetyInductionScore', weight: weights.safetyInduction, isIncident: false, lowerIsBetter: false },
+      { target: 'toolBoxTalkTarget', actual: 'toolBoxTalkActual', score: 'toolBoxTalkScore', weight: weights.toolBoxTalk, isIncident: false, lowerIsBetter: false },
+      { target: 'jobSpecificTrainingTarget', actual: 'jobSpecificTrainingActual', score: 'jobSpecificTrainingScore', weight: weights.jobSpecificTraining, isIncident: false, lowerIsBetter: false },
+      { target: 'formalSafetyInspectionTarget', actual: 'formalSafetyInspectionActual', score: 'formalSafetyInspectionScore', weight: weights.formalSafetyInspection, isIncident: false, lowerIsBetter: false },
+      { target: 'emergencyMockDrillsTarget', actual: 'emergencyMockDrillsActual', score: 'emergencyMockDrillsScore', weight: weights.emergencyMockDrills, isIncident: false, lowerIsBetter: false },
+      { target: 'internalAuditTarget', actual: 'internalAuditActual', score: 'internalAuditScore', weight: weights.internalAudit, isIncident: false, lowerIsBetter: false },
       // Leading indicators where "more reporting" is defensibly good, so a
       // blank target with real activity earns full credit instead of 0.
-      { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: this.PARAMETER_WEIGHTS.safetyObservationRaised, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true },
-      { target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore', weight: this.PARAMETER_WEIGHTS.workforceTrainedPercent, isIncident: false, lowerIsBetter: false }, // NEW
-      { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: this.PARAMETER_WEIGHTS.ppeObservations, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
-      { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: this.PARAMETER_WEIGHTS.upcomingTrainings, isIncident: false, lowerIsBetter: false }, // NEW
+      { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: weights.safetyObservationRaised, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true },
+      { target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore', weight: weights.workforceTrainedPercent, isIncident: false, lowerIsBetter: false }, // NEW
+      { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: weights.ppeObservations, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
+      { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: weights.upcomingTrainings, isIncident: false, lowerIsBetter: false }, // NEW
 
       // Documentation (1 pt each)
-      { target: 'nonComplianceCloseTarget', actual: 'nonComplianceCloseActual', score: 'nonComplianceCloseScore', weight: this.PARAMETER_WEIGHTS.nonComplianceClose, isIncident: false, lowerIsBetter: false },
-      { target: 'safetyObservationCloseTarget', actual: 'safetyObservationCloseActual', score: 'safetyObservationCloseScore', weight: this.PARAMETER_WEIGHTS.safetyObservationClose, isIncident: false, lowerIsBetter: false },
-      { target: 'workPermitIssuedTarget', actual: 'workPermitIssuedActual', score: 'workPermitIssuedScore', weight: this.PARAMETER_WEIGHTS.workPermitIssued, isIncident: false, lowerIsBetter: false },
-      { target: 'safeWorkMethodStatementTarget', actual: 'safeWorkMethodStatementActual', score: 'safeWorkMethodStatementScore', weight: this.PARAMETER_WEIGHTS.safeWorkMethodStatement, isIncident: false, lowerIsBetter: false },
+      { target: 'nonComplianceCloseTarget', actual: 'nonComplianceCloseActual', score: 'nonComplianceCloseScore', weight: weights.nonComplianceClose, isIncident: false, lowerIsBetter: false },
+      { target: 'safetyObservationCloseTarget', actual: 'safetyObservationCloseActual', score: 'safetyObservationCloseScore', weight: weights.safetyObservationClose, isIncident: false, lowerIsBetter: false },
+      { target: 'workPermitIssuedTarget', actual: 'workPermitIssuedActual', score: 'workPermitIssuedScore', weight: weights.workPermitIssued, isIncident: false, lowerIsBetter: false },
+      { target: 'safeWorkMethodStatementTarget', actual: 'safeWorkMethodStatementActual', score: 'safeWorkMethodStatementScore', weight: weights.safeWorkMethodStatement, isIncident: false, lowerIsBetter: false },
 
       // PPE Compliance (2 pts) - NEW
-      { target: 'ppeComplianceRateTarget', actual: 'ppeComplianceRateActual', score: 'ppeComplianceRateScore', weight: this.PARAMETER_WEIGHTS.ppeComplianceRate, isIncident: false, lowerIsBetter: false },
+      { target: 'ppeComplianceRateTarget', actual: 'ppeComplianceRateActual', score: 'ppeComplianceRateScore', weight: weights.ppeComplianceRate, isIncident: false, lowerIsBetter: false },
 
       // Compliance Issues (4 pts) - Binary
-      { target: 'nonComplianceRaisedTarget', actual: 'nonComplianceRaisedActual', score: 'nonComplianceRaisedScore', weight: this.PARAMETER_WEIGHTS.nonComplianceRaised, isIncident: true, lowerIsBetter: false },
+      { target: 'nonComplianceRaisedTarget', actual: 'nonComplianceRaisedActual', score: 'nonComplianceRaisedScore', weight: weights.nonComplianceRaised, isIncident: true, lowerIsBetter: false },
 
       // Training Management (2 pts) - Binary - NEW
-      { target: 'overdueTrainingsTarget', actual: 'overdueTrainingsActual', score: 'overdueTrainingsScore', weight: this.PARAMETER_WEIGHTS.overdueTrainings, isIncident: true, lowerIsBetter: false },
+      { target: 'overdueTrainingsTarget', actual: 'overdueTrainingsActual', score: 'overdueTrainingsScore', weight: weights.overdueTrainings, isIncident: true, lowerIsBetter: false },
 
       // Critical Incidents (8 pts each) - Binary
       //
@@ -841,23 +955,23 @@ export class SafetyMetricsService {
       // neighbors below, more reporting reflects a stronger safety culture
       // and should be encouraged, not punished. leadingIndicator skips the
       // severity decay so a non-zero count never drags the score down.
-      { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: this.PARAMETER_WEIGHTS.nearMissReport, isIncident: true, lowerIsBetter: false, leadingIndicator: true },
-      { target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore', weight: this.PARAMETER_WEIGHTS.firstAidInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore', weight: this.PARAMETER_WEIGHTS.medicalTreatmentInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: this.PARAMETER_WEIGHTS.lostTimeInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore', weight: this.PARAMETER_WEIGHTS.recordableIncidents, isIncident: true, lowerIsBetter: false }, // NEW
+      { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: weights.nearMissReport, isIncident: true, lowerIsBetter: false, leadingIndicator: true },
+      { target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore', weight: weights.firstAidInjury, isIncident: true, lowerIsBetter: false },
+      { target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore', weight: weights.medicalTreatmentInjury, isIncident: true, lowerIsBetter: false },
+      { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: weights.lostTimeInjury, isIncident: true, lowerIsBetter: false },
+      { target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore', weight: weights.recordableIncidents, isIncident: true, lowerIsBetter: false }, // NEW
 
       // Environment Metrics (2 pts each) - NEW
-      { target: 'wasteGeneratedTarget', actual: 'wasteGeneratedActual', score: 'wasteGeneratedScore', weight: this.PARAMETER_WEIGHTS.wasteGenerated, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'wasteDisposedTarget', actual: 'wasteDisposedActual', score: 'wasteDisposedScore', weight: this.PARAMETER_WEIGHTS.wasteDisposed, isIncident: false, lowerIsBetter: false }, // Higher is better
-      { target: 'energyConsumptionTarget', actual: 'energyConsumptionActual', score: 'energyConsumptionScore', weight: this.PARAMETER_WEIGHTS.energyConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'waterConsumptionTarget', actual: 'waterConsumptionActual', score: 'waterConsumptionScore', weight: this.PARAMETER_WEIGHTS.waterConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'spillsIncidentsTarget', actual: 'spillsIncidentsActual', score: 'spillsIncidentsScore', weight: this.PARAMETER_WEIGHTS.spillsIncidents, isIncident: true, lowerIsBetter: false }, // Binary
-      { target: 'environmentalIncidentsTarget', actual: 'environmentalIncidentsActual', score: 'environmentalIncidentsScore', weight: this.PARAMETER_WEIGHTS.environmentalIncidents, isIncident: true, lowerIsBetter: false }, // Binary
+      { target: 'wasteGeneratedTarget', actual: 'wasteGeneratedActual', score: 'wasteGeneratedScore', weight: weights.wasteGenerated, isIncident: false, lowerIsBetter: true }, // Lower is better
+      { target: 'wasteDisposedTarget', actual: 'wasteDisposedActual', score: 'wasteDisposedScore', weight: weights.wasteDisposed, isIncident: false, lowerIsBetter: false }, // Higher is better
+      { target: 'energyConsumptionTarget', actual: 'energyConsumptionActual', score: 'energyConsumptionScore', weight: weights.energyConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
+      { target: 'waterConsumptionTarget', actual: 'waterConsumptionActual', score: 'waterConsumptionScore', weight: weights.waterConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
+      { target: 'spillsIncidentsTarget', actual: 'spillsIncidentsActual', score: 'spillsIncidentsScore', weight: weights.spillsIncidents, isIncident: true, lowerIsBetter: false }, // Binary
+      { target: 'environmentalIncidentsTarget', actual: 'environmentalIncidentsActual', score: 'environmentalIncidentsScore', weight: weights.environmentalIncidents, isIncident: true, lowerIsBetter: false }, // Binary
 
       // Health & Hygiene (2 pts each) - NEW
-      { target: 'healthCheckupComplianceTarget', actual: 'healthCheckupComplianceActual', score: 'healthCheckupComplianceScore', weight: this.PARAMETER_WEIGHTS.healthCheckupCompliance, isIncident: false, lowerIsBetter: false },
-      { target: 'waterQualityTestTarget', actual: 'waterQualityTestActual', score: 'waterQualityTestScore', weight: this.PARAMETER_WEIGHTS.waterQualityTest, isIncident: false, lowerIsBetter: false },
+      { target: 'healthCheckupComplianceTarget', actual: 'healthCheckupComplianceActual', score: 'healthCheckupComplianceScore', weight: weights.healthCheckupCompliance, isIncident: false, lowerIsBetter: false },
+      { target: 'waterQualityTestTarget', actual: 'waterQualityTestActual', score: 'waterQualityTestScore', weight: weights.waterQualityTest, isIncident: false, lowerIsBetter: false },
     ];
 
     // Process each parameter

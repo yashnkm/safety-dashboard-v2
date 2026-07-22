@@ -71,6 +71,30 @@ describe('PARAMETER_WEIGHTS', () => {
   });
 });
 
+describe('configurable weights', () => {
+  it('getDefaultWeights returns a copy of PARAMETER_WEIGHTS that sums to 100', () => {
+    const defaults = service.getDefaultWeights();
+    expect(defaults).toEqual(service.PARAMETER_WEIGHTS);
+    expect(defaults).not.toBe(service.PARAMETER_WEIGHTS); // must be a copy, not the same reference
+    const total = Object.values(defaults as Record<string, number>).reduce((sum, w) => sum + w, 0);
+    expect(total).toBe(100);
+  });
+
+  it('getWeightFieldMap covers exactly the same 32 parameter keys as PARAMETER_WEIGHTS', () => {
+    const fieldMap = service.getWeightFieldMap();
+    expect(fieldMap).toHaveLength(32);
+    const paramKeys = fieldMap.map(([paramKey]: [string, string]) => paramKey).sort();
+    const weightKeys = Object.keys(service.PARAMETER_WEIGHTS).sort();
+    expect(paramKeys).toEqual(weightKeys);
+  });
+
+  it('getWeightFieldMap has a unique CompanySettings column for every parameter', () => {
+    const fieldMap = service.getWeightFieldMap();
+    const dbFields = fieldMap.map(([, dbField]: [string, string]) => dbField);
+    expect(new Set(dbFields).size).toBe(dbFields.length);
+  });
+});
+
 describe('calculateParameterScore', () => {
   it('awards full weight for zero incidents (target=0, actual=0)', () => {
     // Regression guard: the no-data guard used to run before the incident

@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { adminService, type Company } from '@/services/admin.service';
 import CompanyFormDialog from './CompanyFormDialog';
+import CompanySettingsDialog from './CompanySettingsDialog';
 
 export default function CompanyManagement() {
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsCompany, setSettingsCompany] = useState<Company | null>(null);
 
   // Fetch companies
   const { data: companiesResponse, isLoading } = useQuery({
@@ -46,6 +49,16 @@ export default function CompanyManagement() {
   const handleCloseForm = () => {
     setIsFormOpen(false);
     setSelectedCompany(null);
+  };
+
+  const handleOpenSettings = (company: Company) => {
+    setSettingsCompany(company);
+    setIsSettingsOpen(true);
+  };
+
+  const handleCloseSettings = () => {
+    setIsSettingsOpen(false);
+    setSettingsCompany(null);
   };
 
   return (
@@ -139,6 +152,14 @@ export default function CompanyManagement() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => handleOpenSettings(company)}
+                            title="Parameter weights"
+                          >
+                            <SlidersHorizontal className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => handleEdit(company)}
                           >
                             <Pencil className="w-4 h-4" />
@@ -166,6 +187,12 @@ export default function CompanyManagement() {
         isOpen={isFormOpen}
         onClose={handleCloseForm}
         company={selectedCompany}
+      />
+
+      <CompanySettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={handleCloseSettings}
+        company={settingsCompany}
       />
     </>
   );

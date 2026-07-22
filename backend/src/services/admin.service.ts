@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { cleanupOrphanedLogos } from './logoCleanup.service';
+import { safetyMetricsService } from './safetyMetrics.service';
 import bcrypt from 'bcrypt';
 
 export class AdminService {
@@ -82,6 +83,74 @@ export class AdminService {
     if (company.logoUrl) {
       cleanupOrphanedLogos();
     }
+  }
+
+  // ==================== COMPANY SETTINGS (Parameter Weights) ====================
+
+  async getCompanySettings(companyId: string, callerCompanyId: string, callerRole: string) {
+    if (callerRole !== 'SUPER_ADMIN' && companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this company');
+    }
+
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) {
+      throw new AppError(404, 'Company not found');
+    }
+
+    const settings = await prisma.companySettings.findUnique({ where: { companyId } });
+    const fieldMap = safetyMetricsService.getWeightFieldMap();
+
+    if (!settings) {
+      return { companyId, isCustom: false, weights: safetyMetricsService.getDefaultWeights() };
+    }
+
+    const weights: Record<string, number> = {};
+    for (const [paramKey, dbField] of fieldMap) {
+      weights[paramKey] = Number((settings as any)[dbField]);
+    }
+
+    return { companyId, isCustom: true, weights, updatedAt: settings.updatedAt };
+  }
+
+  async updateCompanySettings(
+    companyId: string,
+    weights: Record<string, number>,
+    callerCompanyId: string,
+    callerRole: string,
+    userId: string
+  ) {
+    if (callerRole !== 'SUPER_ADMIN' && companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this company');
+    }
+
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) {
+      throw new AppError(404, 'Company not found');
+    }
+
+    const fieldMap = safetyMetricsService.getWeightFieldMap();
+    const dbData: Record<string, number> = {};
+    let sum = 0;
+
+    for (const [paramKey, dbField] of fieldMap) {
+      const value = Number(weights[paramKey]);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new AppError(400, `Invalid weight for "${paramKey}": must be a non-negative number`);
+      }
+      dbData[dbField] = value;
+      sum += value;
+    }
+
+    // Small tolerance for rounding, not for genuinely mis-entered totals.
+    if (Math.abs(sum - 100) > 0.5) {
+      throw new AppError(400, `Parameter weights must sum to 100 (currently ${sum.toFixed(2)})`);
+    }
+
+    return await prisma.companySettings.upsert({
+      where: { companyId },
+      update: { ...dbData, updatedBy: userId },
+      create: { companyId, ...dbData, updatedBy: userId },
+    });
   }
 
   // ==================== SITES ====================
