@@ -114,6 +114,33 @@ describe('calculateParameterScore', () => {
     );
   });
 
+  it('LTIFR/TRIR-style rate-based scoring: normalizes severity by hours worked instead of raw count', () => {
+    // 2 injuries at 50,000 hours -> LTIFR = 2,000,000/50,000 = 40 -> weight/(1+40)
+    const smallSite = service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 50_000);
+    expect(smallSite).toBeCloseTo(8 / 41, 5);
+
+    // Same 2 injuries at 500,000 hours -> LTIFR = 2,000,000/500,000 = 4 -> weight/(1+4)
+    const bigSite = service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 500_000);
+    expect(bigSite).toBeCloseTo(8 / 5, 5);
+
+    // Same raw count, but the smaller site (higher rate) scores meaningfully worse
+    expect(bigSite).toBeGreaterThan(smallSite);
+  });
+
+  it('falls back to the plain per-count decay when hours-worked data is missing or zero', () => {
+    expect(service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 0)).toBeCloseTo(
+      8 / 3,
+      5
+    );
+    expect(
+      service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, undefined)
+    ).toBeCloseTo(8 / 3, 5);
+  });
+
+  it('rate-based parameters still award full weight for zero incidents, hours worked notwithstanding', () => {
+    expect(service.calculateParameterScore(0, 0, 8, true, false, false, false, 1_000_000, 500_000)).toBe(8);
+  });
+
   it('treats target=0, actual=0 as no data for non-incident parameters', () => {
     expect(service.calculateParameterScore(0, 0, 2, false, false)).toBe(0);
   });

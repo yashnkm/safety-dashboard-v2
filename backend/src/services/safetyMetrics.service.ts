@@ -456,7 +456,9 @@ export class SafetyMetricsService {
     isIncident: boolean = false,
     lowerIsBetter: boolean = false,
     blankTargetAwardsFullCredit: boolean = false,
-    leadingIndicator: boolean = false
+    leadingIndicator: boolean = false,
+    rateMultiplier?: number,
+    hoursWorked?: number
   ): number {
     // For incident metrics, target is always 0 by design — "zero incidents"
     // is the goal, not missing data. This must run BEFORE the no-data guard
@@ -471,10 +473,23 @@ export class SafetyMetricsService {
       if (leadingIndicator) {
         return weight;
       }
+      if (actual === 0) {
+        return weight;
+      }
+      // Rate-based severity (LTIFR/TRIR-style, per industry-standard
+      // per-hours-worked formulas): a raw count unfairly equates a small
+      // site to a huge one — 2 injuries at 50,000 hours worked is far more
+      // severe than 2 injuries at 500,000 hours. Normalizing by hours
+      // reflects real frequency relative to site activity. Falls back to
+      // the plain per-count decay when hours-worked data isn't available.
+      if (rateMultiplier && hoursWorked && hoursWorked > 0) {
+        const rate = (actual * rateMultiplier) / hoursWorked;
+        return weight / (1 + rate);
+      }
       // Non-zero counts decay smoothly (weight / (1 + actual)) instead of
       // dropping straight to 0, so severity is distinguishable: 1 incident
       // still scores meaningfully higher than 45 of the same type.
-      return actual === 0 ? weight : weight / (1 + actual);
+      return weight / (1 + actual);
     }
 
     // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0 score
@@ -1016,8 +1031,11 @@ export class SafetyMetricsService {
       { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: weights.nearMissReport, isIncident: true, lowerIsBetter: false, leadingIndicator: true },
       { target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore', weight: weights.firstAidInjury, isIncident: true, lowerIsBetter: false },
       { target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore', weight: weights.medicalTreatmentInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: weights.lostTimeInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore', weight: weights.recordableIncidents, isIncident: true, lowerIsBetter: false }, // NEW
+      // LTIFR = (Lost Time Injuries x 1,000,000) / hours worked - severity
+      // normalized by site activity level, not a raw count.
+      { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: weights.lostTimeInjury, isIncident: true, lowerIsBetter: false, rateMultiplier: 1_000_000 },
+      // TRIR = (Recordable Incidents x 200,000) / hours worked.
+      { target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore', weight: weights.recordableIncidents, isIncident: true, lowerIsBetter: false, rateMultiplier: 200_000 }, // NEW
 
       // Environment Metrics (2 pts each) - NEW
       { target: 'wasteGeneratedTarget', actual: 'wasteGeneratedActual', score: 'wasteGeneratedScore', weight: weights.wasteGenerated, isIncident: false, lowerIsBetter: true }, // Lower is better
@@ -1032,8 +1050,13 @@ export class SafetyMetricsService {
       { target: 'waterQualityTestTarget', actual: 'waterQualityTestActual', score: 'waterQualityTestScore', weight: weights.waterQualityTest, isIncident: false, lowerIsBetter: false },
     ];
 
+    // Man-hours worked, used to normalize LTIFR/TRIR-style rate-based
+    // parameters below — falls back to the plain per-count decay formula
+    // when this is missing or zero.
+    const hoursWorked = Number(data.safeWorkHoursActual) || 0;
+
     // Process each parameter
-    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator }) => {
+    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator, rateMultiplier }) => {
       if (data[target] !== undefined && data[actual] !== undefined) {
         const targetVal = Number(data[target]) || 0;
         const actualVal = Number(data[actual]) || 0;
@@ -1042,7 +1065,17 @@ export class SafetyMetricsService {
         processedData[actual] = actualVal;
 
         // Calculate weighted score but store as 0-10 for DB compatibility
-        const weightedScore = this.calculateParameterScore(targetVal, actualVal, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator);
+        const weightedScore = this.calculateParameterScore(
+          targetVal,
+          actualVal,
+          weight,
+          isIncident,
+          lowerIsBetter,
+          blankTargetAwardsFullCredit,
+          leadingIndicator,
+          rateMultiplier,
+          hoursWorked
+        );
         // Convert back to 0-10 scale for storage (will be converted back when calculating total)
         processedData[score] = (weightedScore / weight) * 10;
       }
