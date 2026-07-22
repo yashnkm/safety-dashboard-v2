@@ -119,7 +119,7 @@ export class AdminController {
   async updateSite(req: AuthRequest, res: Response) {
     const { id } = req.params;
     const data = req.body;
-    const site = await adminService.updateSite(id, data);
+    const site = await adminService.updateSite(id, data, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       data: site,
@@ -132,7 +132,7 @@ export class AdminController {
    */
   async deleteSite(req: AuthRequest, res: Response) {
     const { id } = req.params;
-    await adminService.deleteSite(id);
+    await adminService.deleteSite(id, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       message: 'Site deleted successfully',
@@ -181,7 +181,7 @@ export class AdminController {
   async updateUser(req: AuthRequest, res: Response) {
     const { id } = req.params;
     const data = req.body;
-    const user = await adminService.updateUser(id, data);
+    const user = await adminService.updateUser(id, data, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       data: user,
@@ -194,7 +194,7 @@ export class AdminController {
    */
   async deleteUser(req: AuthRequest, res: Response) {
     const { id } = req.params;
-    await adminService.deleteUser(id);
+    await adminService.deleteUser(id, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       message: 'User deleted successfully',
@@ -213,7 +213,7 @@ export class AdminController {
       throw new AppError(400, 'siteIds must be an array');
     }
 
-    await adminService.assignSitesToUser(id, siteIds);
+    await adminService.assignSitesToUser(id, siteIds, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       message: 'Sites assigned successfully',
@@ -226,7 +226,7 @@ export class AdminController {
    */
   async getUserSites(req: AuthRequest, res: Response) {
     const { id } = req.params;
-    const sites = await adminService.getUserSites(id);
+    const sites = await adminService.getUserSites(id, req.user!.companyId, req.user!.role);
     res.json({
       status: 'success',
       data: sites,

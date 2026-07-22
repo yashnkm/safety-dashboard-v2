@@ -148,10 +148,13 @@ export class AdminService {
     });
   }
 
-  async updateSite(id: string, data: any) {
+  async updateSite(id: string, data: any, callerCompanyId: string, callerRole: string) {
     const site = await prisma.site.findUnique({ where: { id } });
     if (!site) {
       throw new AppError(404, 'Site not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && site.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this site');
     }
 
     return await prisma.site.update({
@@ -171,10 +174,13 @@ export class AdminService {
     });
   }
 
-  async deleteSite(id: string) {
+  async deleteSite(id: string, callerCompanyId: string, callerRole: string) {
     const site = await prisma.site.findUnique({ where: { id } });
     if (!site) {
       throw new AppError(404, 'Site not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && site.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this site');
     }
 
     await prisma.site.delete({ where: { id } });
@@ -262,10 +268,13 @@ export class AdminService {
     });
   }
 
-  async updateUser(id: string, data: any) {
+  async updateUser(id: string, data: any, callerCompanyId: string, callerRole: string) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new AppError(404, 'User not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && user.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this user');
     }
 
     const updateData: any = {
@@ -295,19 +304,25 @@ export class AdminService {
     });
   }
 
-  async deleteUser(id: string) {
+  async deleteUser(id: string, callerCompanyId: string, callerRole: string) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new AppError(404, 'User not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && user.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this user');
     }
 
     await prisma.user.delete({ where: { id } });
   }
 
-  async assignSitesToUser(userId: string, siteIds: string[]) {
+  async assignSitesToUser(userId: string, siteIds: string[], callerCompanyId: string, callerRole: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new AppError(404, 'User not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && user.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this user');
     }
 
     // Validate that all sites belong to the user's company
@@ -349,7 +364,7 @@ export class AdminService {
     }
   }
 
-  async getUserSites(userId: string) {
+  async getUserSites(userId: string, callerCompanyId: string, callerRole: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -363,6 +378,9 @@ export class AdminService {
 
     if (!user) {
       throw new AppError(404, 'User not found');
+    }
+    if (callerRole !== 'SUPER_ADMIN' && user.companyId !== callerCompanyId) {
+      throw new AppError(403, 'Access denied to this user');
     }
 
     return user.userSiteAccess.map(access => access.site);
