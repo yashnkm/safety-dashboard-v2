@@ -43,7 +43,9 @@ import {
   TestTube,
   Building2,
   Info,
+  FileDown,
 } from 'lucide-react';
+import { exportDashboardToPdf } from '@/lib/pdfExport';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
 
@@ -682,6 +684,20 @@ export default function Dashboard() {
     return { reported, total };
   })();
 
+  const handleExportPdf = () => {
+    if (!dataSourceInfo) return;
+    exportDashboardToPdf({
+      siteLabel: dataSourceInfo.label,
+      month: selectedMonth,
+      year: selectedYear,
+      totalScore: cumulativeScore.totalScore,
+      maxScore: cumulativeScore.maxScore,
+      rating: cumulativeScore.rating,
+      displayData,
+      isAmbiguousSource: dataSourceInfo.isAmbiguous,
+    });
+  };
+
   return (
     <DashboardLayout
       sidebar={
@@ -700,18 +716,26 @@ export default function Dashboard() {
       }
     >
       <div className="space-y-8">
-        {/* Header with Import Button */}
+        {/* Header with Import/Export Buttons */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Safety Dashboard</h1>
             <p className="text-gray-600 mt-1">Track and monitor safety metrics across all sites</p>
           </div>
-          {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
-            <Button onClick={() => navigate('/import')} className="gap-2">
-              <Upload className="w-4 h-4" />
-              Import from Excel
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {!metricsLoading && metricsData && metricsData.length > 0 && (
+              <Button variant="outline" onClick={handleExportPdf} className="gap-2">
+                <FileDown className="w-4 h-4" />
+                Export PDF
+              </Button>
+            )}
+            {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+              <Button onClick={() => navigate('/import')} className="gap-2">
+                <Upload className="w-4 h-4" />
+                Import from Excel
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Data Source Label */}
