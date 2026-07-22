@@ -82,6 +82,7 @@ export class DashboardController {
     const { siteId, month, year, ...metricsData } = req.body;
     const companyId = req.user!.companyId;
     const role = req.user!.role;
+    const userId = req.user!.id;
 
     // Validate required fields
     if (!siteId || !month || !year) {
@@ -94,7 +95,9 @@ export class DashboardController {
       month,
       year,
       metricsData,
-      role
+      role,
+      userId,
+      { ipAddress: req.ip, userAgent: req.get('user-agent') }
     );
 
     res.status(201).json({
@@ -148,7 +151,8 @@ export class DashboardController {
       year,
       userId,
       role,
-      metricsData
+      metricsData,
+      { ipAddress: req.ip, userAgent: req.get('user-agent') }
     );
 
     res.status(201).json({

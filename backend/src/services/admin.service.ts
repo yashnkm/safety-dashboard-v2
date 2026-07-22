@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { cleanupOrphanedLogos } from './logoCleanup.service';
 import { safetyMetricsService } from './safetyMetrics.service';
+import { auditLogService } from './auditLog.service';
 import bcrypt from 'bcrypt';
 
 export class AdminService {
@@ -453,6 +454,30 @@ export class AdminService {
     }
 
     return user.userSiteAccess.map(access => access.site);
+  }
+
+  // ==================== AUDIT LOGS ====================
+
+  async getAuditLogs(
+    filters: {
+      companyId?: string;
+      siteId?: string;
+      entityType?: string;
+      action?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+    callerCompanyId: string,
+    callerRole: string
+  ) {
+    // ADMIN is always confined to their own company, regardless of what
+    // companyId (if any) they passed in. SUPER_ADMIN can see any company,
+    // or all of them if none is specified.
+    const companyId = callerRole === 'SUPER_ADMIN' ? filters.companyId : callerCompanyId;
+
+    return await auditLogService.getAuditLogs({ ...filters, companyId });
   }
 }
 

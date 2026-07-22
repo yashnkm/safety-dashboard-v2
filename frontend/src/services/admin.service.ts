@@ -166,6 +166,21 @@ export const adminService = {
     return response.data;
   },
 
+  // Audit Logs
+  getAuditLogs: async (params: {
+    companyId?: string;
+    siteId?: string;
+    entityType?: string;
+    action?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const response = await api.get('/admin/audit-logs', { params });
+    return response.data;
+  },
+
   // Sites
   getSites: async (companyId?: string) => {
     const params = companyId ? { companyId } : {};

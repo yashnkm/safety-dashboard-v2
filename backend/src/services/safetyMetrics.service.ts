@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditLogService } from './auditLog.service';
 
 interface MetricsFilters {
   companyId?: string;
@@ -179,7 +180,9 @@ export class SafetyMetricsService {
     month: string,
     year: number,
     data: any,
-    role?: string
+    role?: string,
+    userId?: string,
+    auditContext?: { ipAddress?: string | null; userAgent?: string | null }
   ) {
     // Verify site exists
     const site = await prisma.site.findUnique({
@@ -217,6 +220,19 @@ export class SafetyMetricsService {
     const percentage = (totalScore / 100) * 100;
     const rating = this.getRating(percentage);
 
+    // Captured before the write so the audit log can show what actually
+    // changed, not just what it's now set to.
+    const existing = await prisma.safetyMetrics.findUnique({
+      where: { siteId_month_year: { siteId, month, year } },
+    });
+    const oldValues = existing
+      ? this.TARGET_ACTUAL_FIELDS.reduce((acc, [target, actual]) => {
+          acc[target] = (existing as any)[target];
+          acc[actual] = (existing as any)[actual];
+          return acc;
+        }, {} as Record<string, any>)
+      : null;
+
     // Upsert metrics
     const metric = await prisma.safetyMetrics.upsert({
       where: {
@@ -231,6 +247,7 @@ export class SafetyMetricsService {
         totalScore,
         percentage,
         rating,
+        createdBy: userId,
         updatedAt: new Date(),
       },
       create: {
@@ -241,6 +258,7 @@ export class SafetyMetricsService {
         totalScore,
         percentage,
         rating,
+        createdBy: userId,
       },
       include: {
         site: {
@@ -250,6 +268,19 @@ export class SafetyMetricsService {
           },
         },
       },
+    });
+
+    await auditLogService.logChange({
+      companyId: site.companyId,
+      siteId,
+      userId: userId ?? null,
+      action: existing ? 'update' : 'create',
+      entityType: 'SafetyMetrics',
+      entityId: metric.id,
+      oldValues,
+      newValues: data,
+      ipAddress: auditContext?.ipAddress,
+      userAgent: auditContext?.userAgent,
     });
 
     return metric;
@@ -811,7 +842,8 @@ export class SafetyMetricsService {
     year: number,
     userId: string,
     role: string,
-    metricsData: any[]
+    metricsData: any[],
+    auditContext?: { ipAddress?: string | null; userAgent?: string | null }
   ) {
     // Verify site exists
     const site = await prisma.site.findUnique({
@@ -865,8 +897,21 @@ export class SafetyMetricsService {
         const percentage = (totalScore / 100) * 100;
         const rating = this.getRating(percentage);
 
+        // Captured before the write so the audit log can show what actually
+        // changed, not just what it's now set to.
+        const existing = await prisma.safetyMetrics.findUnique({
+          where: { siteId_month_year: { siteId, month, year } },
+        });
+        const oldValues = existing
+          ? this.TARGET_ACTUAL_FIELDS.reduce((acc, [target, actual]) => {
+              acc[target] = (existing as any)[target];
+              acc[actual] = (existing as any)[actual];
+              return acc;
+            }, {} as Record<string, any>)
+          : null;
+
         // Upsert metrics
-        await prisma.safetyMetrics.upsert({
+        const savedMetric = await prisma.safetyMetrics.upsert({
           where: {
             siteId_month_year: {
               siteId,
@@ -892,6 +937,19 @@ export class SafetyMetricsService {
             rating,
             createdBy: userId,
           },
+        });
+
+        await auditLogService.logChange({
+          companyId: site.companyId,
+          siteId,
+          userId,
+          action: existing ? 'import_update' : 'import_create',
+          entityType: 'SafetyMetrics',
+          entityId: savedMetric.id,
+          oldValues,
+          newValues: data,
+          ipAddress: auditContext?.ipAddress,
+          userAgent: auditContext?.userAgent,
         });
 
         results.success++;

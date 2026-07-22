@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Users, ArrowLeft } from 'lucide-react';
+import { Building2, MapPin, Users, ArrowLeft, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import CompanyManagement from '@/components/admin/CompanyManagement';
 import SiteManagement from '@/components/admin/SiteManagement';
 import UserManagement from '@/components/admin/UserManagement';
+import AuditLogViewer from '@/components/admin/AuditLogViewer';
 import { useAuthStore } from '@/store/authStore';
 
-type TabType = 'companies' | 'sites' | 'users';
+type TabType = 'companies' | 'sites' | 'users' | 'audit';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -58,6 +59,12 @@ export default function Admin() {
       label: 'Users',
       icon: Users,
       description: 'Manage users',
+    },
+    {
+      id: 'audit' as TabType,
+      label: 'Audit Log',
+      icon: History,
+      description: 'Who changed what, when',
     },
   ];
 
@@ -117,6 +124,7 @@ export default function Admin() {
           )}
           {activeTab === 'sites' && <SiteManagement />}
           {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'audit' && <AuditLogViewer />}
         </div>
       </div>
     </div>

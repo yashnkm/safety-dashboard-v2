@@ -272,6 +272,36 @@ export class AdminController {
       data: sites,
     });
   }
+
+  // ==================== AUDIT LOGS ====================
+
+  /**
+   * GET /api/admin/audit-logs
+   * Get audit log entries - who changed what, when
+   */
+  async getAuditLogs(req: AuthRequest, res: Response) {
+    const { companyId, siteId, entityType, action, startDate, endDate, limit, offset } = req.query;
+
+    const result = await adminService.getAuditLogs(
+      {
+        companyId: companyId as string | undefined,
+        siteId: siteId as string | undefined,
+        entityType: entityType as string | undefined,
+        action: action as string | undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
+        offset: offset ? parseInt(offset as string, 10) : undefined,
+      },
+      req.user!.companyId,
+      req.user!.role
+    );
+
+    res.json({
+      status: 'success',
+      data: result,
+    });
+  }
 }
 
 export const adminController = new AdminController();

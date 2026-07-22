@@ -128,4 +128,13 @@ router.get(
   asyncHandler(adminController.getUserSites.bind(adminController))
 );
 
+// ==================== AUDIT LOGS ====================
+// SUPER_ADMIN sees all/any company; ADMIN is confined to their own
+
+router.get(
+  '/audit-logs',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  asyncHandler(adminController.getAuditLogs.bind(adminController))
+);
+
 export default router;
