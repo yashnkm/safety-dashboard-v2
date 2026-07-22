@@ -79,9 +79,15 @@ describe('calculateParameterScore', () => {
     expect(service.calculateParameterScore(0, 0, 8, true, false)).toBe(8);
   });
 
-  it('awards zero when any incidents occurred', () => {
-    expect(service.calculateParameterScore(0, 3, 8, true, false)).toBe(0);
-    expect(service.calculateParameterScore(0, 1, 8, true, false)).toBe(0);
+  it('decays severity-scaled when incidents occurred, instead of a flat cliff to zero', () => {
+    // weight / (1 + actual) - fewer incidents still score meaningfully
+    // higher than more of the same type, rather than both flooring to 0.
+    expect(service.calculateParameterScore(0, 1, 8, true, false)).toBeCloseTo(4, 5);
+    expect(service.calculateParameterScore(0, 3, 8, true, false)).toBeCloseTo(2, 5);
+    expect(service.calculateParameterScore(0, 45, 8, true, false)).toBeCloseTo(8 / 46, 5);
+    expect(service.calculateParameterScore(0, 1, 8, true, false)).toBeGreaterThan(
+      service.calculateParameterScore(0, 3, 8, true, false)
+    );
   });
 
   it('treats target=0, actual=0 as no data for non-incident parameters', () => {
@@ -257,9 +263,9 @@ describe('end-to-end: import → total score', () => {
     const result = service.calculateMetricScores(processed);
 
     // manDays (2 pts) + nearMiss/firstAid/MTI/recordable (8 pts each, zero
-    // incidents) = 34 max reachable here; LTI's 8 points are entirely lost
-    // to the one incident that occurred.
-    expect(result.totalScore).toBeCloseTo(2 + 8 + 8 + 8 + 8, 5);
+    // incidents) = 34, plus LTI's severity-decayed score for 1 incident:
+    // 8 / (1 + 1) = 4 (half weight, not zero).
+    expect(result.totalScore).toBeCloseTo(2 + 8 + 8 + 8 + 8 + 4, 5);
     expect(result.totalScore).toBeLessThan(40);
   });
 });

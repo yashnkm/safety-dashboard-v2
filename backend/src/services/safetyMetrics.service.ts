@@ -319,8 +319,12 @@ export class SafetyMetricsService {
     // actual=0) is indistinguishable from "no data entered" and incorrectly
     // scores 0 instead of full weight. Record-level emptiness (every one of
     // the 32 parameters at 0) is caught separately by hasNoData().
+    //
+    // Non-zero counts decay smoothly (weight / (1 + actual)) instead of
+    // dropping straight to 0, so severity is distinguishable: 1 incident
+    // still scores meaningfully higher than 45 of the same type.
     if (isIncident) {
-      return actual === 0 ? weight : 0;
+      return actual === 0 ? weight : weight / (1 + actual);
     }
 
     // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0 score
