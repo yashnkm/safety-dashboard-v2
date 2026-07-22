@@ -27,8 +27,16 @@ export default function ParameterCard({
   // 100-point total — distinct from "Achievement", which is just this
   // parameter's own ratio and says nothing about how much it matters.
   const pointsEarned = (score * weight) / 100;
+
+  // Target=0 with actual=0 means this field was never filled in for this
+  // period — not a genuinely bad result. Incident parameters don't have
+  // this ambiguity (target=0 is their design, actual=0 is a real "zero
+  // incidents" outcome), so they're excluded here.
+  const isNotReported = !isIncident && target === 0 && actual === 0;
+
   // Determine status based on score
   const getStatus = () => {
+    if (isNotReported) return { label: 'Not Reported', color: 'bg-gray-100 text-gray-500 border-gray-300' };
     if (score >= 90) return { label: 'Excellent', color: 'bg-green-100 text-green-700 border-green-300' };
     if (score >= 70) return { label: 'Good', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' };
     return { label: 'Needs Attention', color: 'bg-red-100 text-red-700 border-red-300' };
@@ -55,6 +63,7 @@ export default function ParameterCard({
 
   // Determine progress bar color
   const getProgressColor = () => {
+    if (isNotReported) return 'bg-gray-300';
     if (score >= 90) return 'bg-green-500';
     if (score >= 70) return 'bg-yellow-500';
     return 'bg-red-500';
@@ -100,7 +109,7 @@ export default function ParameterCard({
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Achievement</span>
-            <span className="font-medium">{score.toFixed(1)}%</span>
+            <span className="font-medium">{isNotReported ? '—' : `${score.toFixed(1)}%`}</span>
           </div>
           <div className="relative w-full h-2 bg-secondary rounded-full overflow-hidden">
             <div
@@ -113,7 +122,7 @@ export default function ParameterCard({
         {/* Weighted Contribution to the 100-point total */}
         <div className="flex items-center justify-between pt-2 border-t">
           <span className="text-xs text-muted-foreground">Contributes to Total</span>
-          <span className={`text-xl font-bold ${score >= 90 ? 'text-green-600' : score >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+          <span className={`text-xl font-bold ${isNotReported ? 'text-gray-400' : score >= 90 ? 'text-green-600' : score >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
             {pointsEarned.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">/ {weight} pts</span>
           </span>
         </div>

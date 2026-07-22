@@ -42,6 +42,7 @@ import {
   Heart,
   TestTube,
   Building2,
+  Info,
 } from 'lucide-react';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
@@ -682,6 +683,18 @@ export default function Dashboard() {
 
   const dataSourceInfo = getDataSourceInfo();
 
+  // How many of the 32 parameters actually had data entered this period vs.
+  // were left blank (target=0, actual=0). Surfaced separately from the score
+  // itself so a partially-empty month doesn't read as an outright bad one -
+  // blank parameters show as "Not Reported" on their cards, not red.
+  const dataCompleteness = (() => {
+    if (!metricsData || metricsData.length === 0) return null;
+    const allParams = Object.values(displayData).flat() as Array<{ target: number; actual: number; isIncident?: boolean }>;
+    const total = allParams.length;
+    const reported = allParams.filter((p) => p.isIncident || !(p.target === 0 && p.actual === 0)).length;
+    return { reported, total };
+  })();
+
   return (
     <DashboardLayout
       sidebar={
@@ -741,6 +754,17 @@ export default function Dashboard() {
                 </span>
               </>
             )}
+          </div>
+        )}
+
+        {/* Data Completeness Notice */}
+        {!metricsLoading && dataCompleteness && dataCompleteness.reported < dataCompleteness.total && (
+          <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-600">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            <span>
+              {dataCompleteness.reported} of {dataCompleteness.total} parameters reported for this period —
+              the rest show as <strong>Not Reported</strong>, not a poor score.
+            </span>
           </div>
         )}
 
