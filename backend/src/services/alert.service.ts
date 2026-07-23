@@ -93,42 +93,50 @@ export class AlertService {
    * item remains overdue rather than a single one-off notice - there's no
    * dedup/suppression tracking yet, so this will repeat until the CAPA is
    * closed or its due date is pushed out.
+   *
+   * Never throws - this runs off a bare setInterval with nothing else
+   * catching it, so a failure here (e.g. a transient DB outage) would
+   * otherwise be an unhandled rejection that crashes the whole server.
    */
   async runOverdueCapaDigest(): Promise<void> {
-    const overdue = await prisma.correctiveAction.findMany({
-      where: {
-        status: { not: 'CLOSED' },
-        dueDate: { lt: new Date() },
-      },
-      include: {
-        site: { select: { siteName: true } },
-      },
-    });
+    try {
+      const overdue = await prisma.correctiveAction.findMany({
+        where: {
+          status: { not: 'CLOSED' },
+          dueDate: { lt: new Date() },
+        },
+        include: {
+          site: { select: { siteName: true } },
+        },
+      });
 
-    if (overdue.length === 0) {
-      return;
-    }
+      if (overdue.length === 0) {
+        return;
+      }
 
-    const byCompany = new Map<string, typeof overdue>();
-    for (const capa of overdue) {
-      const list = byCompany.get(capa.companyId) || [];
-      list.push(capa);
-      byCompany.set(capa.companyId, list);
-    }
+      const byCompany = new Map<string, typeof overdue>();
+      for (const capa of overdue) {
+        const list = byCompany.get(capa.companyId) || [];
+        list.push(capa);
+        byCompany.set(capa.companyId, list);
+      }
 
-    for (const [companyId, items] of byCompany) {
-      const emails = await this.getCompanyAdminEmails(companyId);
-      if (emails.length === 0) continue;
+      for (const [companyId, items] of byCompany) {
+        const emails = await this.getCompanyAdminEmails(companyId);
+        if (emails.length === 0) continue;
 
-      await mailerService.sendCapaOverdueDigest(
-        emails,
-        items.map((i) => ({
-          title: i.title,
-          siteName: i.site?.siteName,
-          dueDate: i.dueDate!.toISOString(),
-          priority: i.priority,
-        }))
-      );
+        await mailerService.sendCapaOverdueDigest(
+          emails,
+          items.map((i) => ({
+            title: i.title,
+            siteName: i.site?.siteName,
+            dueDate: i.dueDate!.toISOString(),
+            priority: i.priority,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Overdue CAPA digest failed:', err);
     }
   }
 }
