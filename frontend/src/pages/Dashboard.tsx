@@ -903,6 +903,15 @@ export default function Dashboard() {
                 </>
               ) : null}
               .
+              {periodType === 'annual' && (
+                <>
+                  {' '}
+                  Note: this score can differ from the trend chart's <strong>Year Avg</strong> below — Year Avg
+                  averages each month's individual score, while this Annual score is calculated from incidents and
+                  counts summed across the whole year first, then scored once. That's the more accurate method for
+                  rate-based metrics, but it can read lower than the simple monthly average.
+                </>
+              )}
             </span>
           </div>
         )}
