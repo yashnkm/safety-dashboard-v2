@@ -151,6 +151,39 @@ export class SafetyMetricsService {
       return null;
     }
 
+    const combined = this.combineFields(records);
+    const weights = await this.getCompanyWeights(companyId);
+    const scored = this.scoreCombined(combined, weights);
+
+    return {
+      id: `aggregate-${companyId}-${month}-${year}`,
+      siteId: 'all',
+      companyId,
+      month,
+      year,
+      ...combined,
+      ...scored.processedData,
+      totalScore: scored.totalScore,
+      percentage: scored.percentage,
+      rating: scored.rating,
+      maxScore: 100,
+      kpis: scored.kpis,
+      site: {
+        siteName: `All Sites (${records.length} site${records.length === 1 ? '' : 's'})`,
+        siteCode: 'ALL',
+      },
+      sitesIncluded: records.map((r) => r.site.siteName),
+    };
+  }
+
+  /**
+   * Sums each count-type parameter's target/actual across a flat list of
+   * SafetyMetrics rows, and averages percentage-shaped parameters (already
+   * 0-100, not a count) instead - summing two 100% compliance rates would
+   * wrongly read as 200%. Doesn't care whether the rows differ by site, by
+   * month, or both - it's purely a field-combining reduction.
+   */
+  private combineFields(records: any[]): Record<string, number> {
     const percentageFieldNames = new Set(this.PERCENTAGE_FIELDS.flat());
     const combined: Record<string, number> = {};
 
@@ -163,31 +196,84 @@ export class SafetyMetricsService {
       }
     }
 
-    const weights = await this.getCompanyWeights(companyId);
+    return combined;
+  }
+
+  /**
+   * Scores an already-combined set of totals once, rather than averaging
+   * separately-computed scores - important for rate-based KPIs like
+   * LTIFR/TRIR, which must come from summed incidents over summed hours.
+   */
+  private scoreCombined(combined: Record<string, number>, weights: Record<string, number>) {
     const processedData = this.calculateAllParameterScores(combined, weights);
     const totalScore = this.calculateTotalScore(processedData, weights);
     const percentage = (totalScore / 100) * 100;
     const rating = this.getRating(percentage);
     const kpis = this.calculateKPIs(processedData);
+    return { processedData, totalScore, percentage, rating, kpis };
+  }
+
+  /**
+   * Combines SafetyMetrics rows across an arbitrary set of (month, year)
+   * periods - powers Quarterly/Half-Yearly/Annual/Custom dashboard views.
+   * When siteId is omitted or 'all', also combines across every site in the
+   * company (same effect as getAggregatedMetrics, just across time too).
+   */
+  async getMetricsForPeriods(params: {
+    companyId?: string;
+    siteId?: string;
+    periods: { month: string; year: number }[];
+  }) {
+    const { companyId, siteId, periods } = params;
+
+    const where: any = { OR: periods.map((p) => ({ month: p.month, year: p.year })) };
+    if (companyId) {
+      where.site = { companyId };
+    }
+    if (siteId && siteId !== 'all') {
+      where.siteId = siteId;
+    }
+
+    const records = await prisma.safetyMetrics.findMany({
+      where,
+      include: {
+        site: { select: { siteName: true, siteCode: true, companyId: true } },
+      },
+    });
+
+    if (records.length === 0) {
+      return null;
+    }
+
+    const combined = this.combineFields(records);
+    const weights = await this.getCompanyWeights(companyId ?? records[0].site.companyId);
+    const scored = this.scoreCombined(combined, weights);
+
+    const distinctSiteNames = [...new Set(records.map((r) => r.site.siteName))];
+    const distinctPeriods = [...new Set(records.map((r) => `${r.month}-${r.year}`))].map((key) => {
+      const [month, year] = key.split('-');
+      return { month, year: Number(year) };
+    });
 
     return {
-      id: `aggregate-${companyId}-${month}-${year}`,
-      siteId: 'all',
+      id: `combined-${siteId ?? 'all'}-${periods.map((p) => `${p.month}${p.year}`).join('')}`,
+      siteId: siteId ?? 'all',
       companyId,
-      month,
-      year,
       ...combined,
-      ...processedData,
-      totalScore,
-      percentage,
-      rating,
+      ...scored.processedData,
+      totalScore: scored.totalScore,
+      percentage: scored.percentage,
+      rating: scored.rating,
       maxScore: 100,
-      kpis,
+      kpis: scored.kpis,
       site: {
-        siteName: `All Sites (${records.length} site${records.length === 1 ? '' : 's'})`,
-        siteCode: 'ALL',
+        siteName: distinctSiteNames.length === 1 ? distinctSiteNames[0] : `${distinctSiteNames.length} Sites`,
+        siteCode: siteId && siteId !== 'all' ? undefined : 'ALL',
       },
-      sitesIncluded: records.map((r) => r.site.siteName),
+      sitesIncluded: distinctSiteNames,
+      periodsRequested: periods,
+      periodsIncluded: distinctPeriods,
+      recordCount: records.length,
     };
   }
 

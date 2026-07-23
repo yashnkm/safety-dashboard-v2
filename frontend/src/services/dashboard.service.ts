@@ -1,4 +1,5 @@
 import { api } from './api.ts';
+import { periodsToQueryParam } from '../lib/periodUtils';
 
 interface KPIData {
   manDays: number;
@@ -64,6 +65,25 @@ export const dashboardService = {
     params.append('year', filters.year.toString());
 
     const response = await api.get(`/dashboard/metrics/aggregate?${params.toString()}`);
+    return response.data.data;
+  },
+
+  /**
+   * Combines metrics across an arbitrary set of (month, year) periods -
+   * powers Quarterly/Half-Yearly/Annual/Custom dashboard views. siteId
+   * omitted or 'all' also combines across every site in the company.
+   */
+  getCombinedMetrics: async (filters: {
+    companyId?: string;
+    siteId?: string;
+    periods: { month: string; year: number }[];
+  }) => {
+    const params = new URLSearchParams();
+    if (filters.companyId) params.append('companyId', filters.companyId);
+    if (filters.siteId) params.append('siteId', filters.siteId);
+    params.append('periods', periodsToQueryParam(filters.periods));
+
+    const response = await api.get(`/dashboard/metrics/combined?${params.toString()}`);
     return response.data.data;
   },
 

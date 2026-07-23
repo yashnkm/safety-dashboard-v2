@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
+import type { PeriodSelection, PeriodType, Quarter, Half } from '@/lib/periodUtils';
 
 interface Site {
   id: string;
@@ -48,6 +49,8 @@ interface AppSidebarProps {
   onSiteChange: (siteId: string) => void;
   onMonthChange: (month: string) => void;
   onYearChange: (year: number) => void;
+  periodSelection: PeriodSelection;
+  onPeriodSelectionChange: (next: PeriodSelection) => void;
   enabledCategories: Record<string, boolean>;
   onCategoryToggle: (category: string) => void;
   loading?: boolean;
@@ -96,6 +99,8 @@ export default function AppSidebar({
   onSiteChange,
   onMonthChange,
   onYearChange,
+  periodSelection,
+  onPeriodSelectionChange,
   enabledCategories,
   onCategoryToggle,
   loading,
@@ -291,21 +296,128 @@ export default function AppSidebar({
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
               <Calendar className="h-3 w-3" />
-              Month
+              Period
             </label>
-            <Select value={selectedMonth} onValueChange={onMonthChange} disabled={loading}>
+            <Select
+              value={periodSelection.type}
+              onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, type: v as PeriodType })}
+              disabled={loading}
+            >
               <SelectTrigger className="h-9 bg-background">
-                <SelectValue placeholder="Select month" />
+                <SelectValue placeholder="Select period type" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
-                {months.map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="halfyearly">Half-Yearly</SelectItem>
+                <SelectItem value="annual">Annual</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {periodSelection.type === 'monthly' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Month
+              </label>
+              <Select value={selectedMonth} onValueChange={onMonthChange} disabled={loading}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                  {months.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {periodSelection.type === 'quarterly' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Quarter
+              </label>
+              <Select
+                value={periodSelection.quarter ?? 'Q1'}
+                onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, quarter: v as Quarter })}
+                disabled={loading}
+              >
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="Select quarter" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                  <SelectItem value="Q1">Q1 (Jan-Mar)</SelectItem>
+                  <SelectItem value="Q2">Q2 (Apr-Jun)</SelectItem>
+                  <SelectItem value="Q3">Q3 (Jul-Sep)</SelectItem>
+                  <SelectItem value="Q4">Q4 (Oct-Dec)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {periodSelection.type === 'halfyearly' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Half
+              </label>
+              <Select
+                value={periodSelection.half ?? 'H1'}
+                onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, half: v as Half })}
+                disabled={loading}
+              >
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="Select half" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                  <SelectItem value="H1">H1 (Jan-Jun)</SelectItem>
+                  <SelectItem value="H2">H2 (Jul-Dec)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {periodSelection.type === 'custom' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Calendar className="h-3 w-3" />
+                Months
+              </label>
+              <div className="space-y-1 rounded-md border bg-background p-2">
+                {months.map((month) => {
+                  const checked = (periodSelection.months ?? []).includes(month.value);
+                  return (
+                    <button
+                      key={month.value}
+                      type="button"
+                      onClick={() => {
+                        const current = periodSelection.months ?? [];
+                        const next = checked
+                          ? current.filter((m) => m !== month.value)
+                          : [...current, month.value];
+                        onPeriodSelectionChange({ ...periodSelection, months: next });
+                      }}
+                      disabled={loading}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent transition-colors"
+                    >
+                      {checked ? (
+                        <CheckSquare className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="flex-1 text-left">{month.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">

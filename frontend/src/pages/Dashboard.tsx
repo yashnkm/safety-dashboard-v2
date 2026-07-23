@@ -47,6 +47,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { exportDashboardToPdf } from '@/lib/pdfExport';
+import { resolvePeriods, periodLabel, type PeriodSelection, type PeriodType, type Quarter, type Half } from '@/lib/periodUtils';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
 
@@ -61,6 +62,26 @@ export default function Dashboard() {
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(monthNames[currentDate.getMonth()]);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [periodType, setPeriodType] = useState<PeriodType>('monthly');
+  const [selectedQuarter, setSelectedQuarter] = useState<Quarter>('Q1');
+  const [selectedHalf, setSelectedHalf] = useState<Half>('H1');
+  const [selectedCustomMonths, setSelectedCustomMonths] = useState<string[]>([]);
+
+  const periodSelection: PeriodSelection = {
+    type: periodType,
+    year: selectedYear,
+    month: selectedMonth,
+    quarter: selectedQuarter,
+    half: selectedHalf,
+    months: selectedCustomMonths,
+  };
+
+  const handlePeriodSelectionChange = (next: PeriodSelection) => {
+    setPeriodType(next.type);
+    if (next.quarter) setSelectedQuarter(next.quarter);
+    if (next.half) setSelectedHalf(next.half);
+    if (next.months) setSelectedCustomMonths(next.months);
+  };
   // SUPER_ADMIN sees sites across every client company, so "All Sites"
   // aggregation requires picking a specific company first - blending two
   // unrelated clients' data into one number would be meaningless. Unused
@@ -174,12 +195,35 @@ export default function Dashboard() {
     return dashboardService.getMetrics({ siteId: selectedSite, month, year });
   };
 
-  // Fetch metrics data
-  const { data: metricsData, isLoading: metricsLoading } = useQuery({
+  // Fetch metrics data for a single selected month (Monthly period type)
+  const { data: monthlyMetricsData, isLoading: monthlyMetricsLoading } = useQuery({
     queryKey: ['metrics', selectedSite, selectedMonth, selectedYear, selectedCompanyId],
     queryFn: () => fetchMetricsForPeriod(selectedMonth, selectedYear),
     enabled: !!selectedMonth && !!selectedYear && canAggregate,
   });
+
+  // Combined metrics across the resolved period (Quarterly/Half-Yearly/
+  // Annual/Custom) - resolves to a concrete list of (month, year) pairs via
+  // periodUtils, then asks the backend to sum/average and score them as one.
+  const resolvedPeriods = resolvePeriods(periodSelection);
+  const { data: combinedMetricsData, isLoading: combinedMetricsLoading } = useQuery({
+    queryKey: ['combinedMetrics', selectedSite, selectedCompanyId, periodType, resolvedPeriods],
+    queryFn: () =>
+      dashboardService
+        .getCombinedMetrics({
+          companyId: user?.role === 'SUPER_ADMIN' ? selectedCompanyId : undefined,
+          siteId: selectedSite,
+          periods: resolvedPeriods,
+        })
+        .then((m) => (m ? [m] : [])),
+    enabled: periodType !== 'monthly' && resolvedPeriods.length > 0 && canAggregate,
+  });
+
+  // Every downstream consumer below reads `metricsData`/`metricsLoading` -
+  // this is the one place that decides which period's data that means,
+  // so nothing further down needs to know about periodType at all.
+  const metricsData = periodType === 'monthly' ? monthlyMetricsData : combinedMetricsData;
+  const metricsLoading = periodType === 'monthly' ? monthlyMetricsLoading : combinedMetricsLoading;
 
   // Fetch yearly trend data (all months for the selected year)
   const { data: yearlyTrendData, isLoading: trendLoading } = useQuery({
@@ -749,7 +793,7 @@ export default function Dashboard() {
     if (!dataSourceInfo) return;
     exportDashboardToPdf({
       siteLabel: dataSourceInfo.label,
-      month: selectedMonth,
+      month: periodLabel(periodSelection),
       year: selectedYear,
       totalScore: cumulativeScore.totalScore,
       maxScore: cumulativeScore.maxScore,
@@ -770,6 +814,8 @@ export default function Dashboard() {
           onSiteChange={setSelectedSite}
           onMonthChange={setSelectedMonth}
           onYearChange={setSelectedYear}
+          periodSelection={periodSelection}
+          onPeriodSelectionChange={handlePeriodSelectionChange}
           enabledCategories={enabledCategories}
           onCategoryToggle={handleCategoryToggle}
           loading={sitesLoading}
@@ -840,6 +886,27 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Combined Period Notice - which months/sites actually had data */}
+        {!metricsLoading && periodType !== 'monthly' && metricsData && metricsData.length > 0 && (
+          <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-600">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            <span>
+              Combined from {metricsData[0].periodsIncluded?.length ?? 0} of {resolvedPeriods.length} month
+              {resolvedPeriods.length === 1 ? '' : 's'}
+              {metricsData[0].periodsIncluded?.length ? (
+                <> ({metricsData[0].periodsIncluded.map((p: any) => p.month.slice(0, 3)).join(', ')})</>
+              ) : null}
+              {metricsData[0].sitesIncluded?.length ? (
+                <>
+                  {' '}
+                  across {metricsData[0].sitesIncluded.length} site{metricsData[0].sitesIncluded.length === 1 ? '' : 's'}
+                </>
+              ) : null}
+              .
+            </span>
+          </div>
+        )}
+
         {/* Data Completeness Notice */}
         {!metricsLoading && dataCompleteness && dataCompleteness.reported < dataCompleteness.total && (
           <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-600">
@@ -896,7 +963,7 @@ export default function Dashboard() {
                   value={cumulativeScore.totalScore}
                   max={cumulativeScore.maxScore}
                   title="KPI Achievement Score"
-                  subtitle={`${selectedMonth} Performance`}
+                  subtitle={`${periodLabel(periodSelection)} Performance`}
                 />
               </div>
 
@@ -920,7 +987,7 @@ export default function Dashboard() {
             <ParametersBarChart
               data={prepareBarChartData()}
               title="KPI Parameters Achievement"
-              subtitle={`Performance Overview - ${selectedMonth} ${selectedYear}`}
+              subtitle={`Performance Overview - ${periodLabel(periodSelection)}`}
             />
           </>
         )}

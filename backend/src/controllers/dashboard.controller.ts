@@ -85,6 +85,54 @@ export class DashboardController {
   }
 
   /**
+   * GET /api/dashboard/metrics/combined
+   * Combines metrics across an arbitrary set of (month, year) periods -
+   * powers Quarterly/Half-Yearly/Annual/Custom dashboard views. siteId
+   * omitted or 'all' combines across every site in the company too.
+   */
+  async getCombinedMetrics(req: AuthRequest, res: Response) {
+    const { siteId, periods: periodsParam, companyId: queryCompanyId } = req.query;
+    const role = req.user!.role;
+
+    if (!periodsParam) {
+      throw new AppError(400, 'periods is required');
+    }
+
+    const periods = (periodsParam as string).split(',').map((token) => {
+      const idx = token.lastIndexOf('-');
+      if (idx <= 0) {
+        throw new AppError(400, `Invalid period token: ${token}`);
+      }
+      return { month: token.slice(0, idx), year: parseInt(token.slice(idx + 1)) };
+    });
+    if (periods.some((p) => !p.month || Number.isNaN(p.year))) {
+      throw new AppError(400, 'Invalid periods format, expected MonthName-Year comma list');
+    }
+
+    // Same SUPER_ADMIN/company scoping as getAggregatedMetrics above.
+    let companyId: string | undefined;
+    if (role === 'SUPER_ADMIN') {
+      if ((!siteId || siteId === 'all') && !queryCompanyId) {
+        throw new AppError(400, 'companyId is required for SUPER_ADMIN when combining all sites');
+      }
+      companyId = queryCompanyId as string | undefined;
+    } else {
+      companyId = req.user!.companyId;
+    }
+
+    const metric = await safetyMetricsService.getMetricsForPeriods({
+      companyId,
+      siteId: siteId as string | undefined,
+      periods,
+    });
+
+    res.json({
+      status: 'success',
+      data: metric,
+    });
+  }
+
+  /**
    * GET /api/dashboard/metrics/:siteId/:year/:month
    * Get metrics for specific site and period
    */

@@ -21,6 +21,14 @@ router.get(
   asyncHandler(dashboardController.getAggregatedMetrics.bind(dashboardController))
 );
 
+// Combined metrics across an arbitrary set of periods (Quarterly/Half-Yearly/
+// Annual/Custom views) - must also come before the /:siteId/:year/:month
+// route below, same reasoning as /metrics/aggregate above.
+router.get(
+  '/metrics/combined',
+  asyncHandler(dashboardController.getCombinedMetrics.bind(dashboardController))
+);
+
 // Get specific metric by site and period
 router.get(
   '/metrics/:siteId/:year/:month',
