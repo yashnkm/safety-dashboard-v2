@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { config } from '../config/env';
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { mailerService } from './mailer.service';
 
 export class AuthService {
   async login(email: string, password: string) {
@@ -172,11 +173,6 @@ export class AuthService {
    * Generates a password reset token if the email belongs to an active user.
    * Always returns the same generic result regardless of whether the email
    * exists, to avoid leaking which emails are registered.
-   *
-   * No SMTP provider is configured yet (EMAIL_* in .env are placeholders),
-   * so the reset link is logged server-side instead of emailed. Once real
-   * credentials are added, swap the console.log below for an actual send —
-   * everything else in this flow already works end-to-end.
    */
   async requestPasswordReset(email: string) {
     const user = await prisma.user.findUnique({ where: { email } });
@@ -194,8 +190,14 @@ export class AuthService {
       });
 
       const resetUrl = `${config.corsOrigin}/reset-password?token=${rawToken}`;
-      console.log(`\n🔑 Password reset requested for ${email}`);
-      console.log(`   Reset link (valid 1 hour): ${resetUrl}\n`);
+      const sent = await mailerService.sendPasswordResetEmail(email, resetUrl);
+
+      if (!sent) {
+        // SMTP not configured, or the send failed - fall back to a server
+        // log so the flow still works in development/debugging.
+        console.log(`\n🔑 Password reset requested for ${email}`);
+        console.log(`   Reset link (valid 1 hour): ${resetUrl}\n`);
+      }
     }
 
     return {

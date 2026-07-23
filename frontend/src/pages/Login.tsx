@@ -129,9 +129,6 @@ export default function Login() {
                 Forgot password?
               </Link>
             </p>
-            <p className="text-center text-xs text-gray-400">
-              Reset links aren't emailed automatically yet — contact your administrator if you're locked out.
-            </p>
           </form>
         </CardContent>
       </Card>

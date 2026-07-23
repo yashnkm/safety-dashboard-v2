@@ -1,0 +1,71 @@
+import nodemailer from 'nodemailer';
+import { config } from '../config/env';
+
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (!config.email.user || !config.email.pass) {
+    return null;
+  }
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: config.email.host,
+      port: config.email.port,
+      secure: config.email.port === 465,
+      auth: {
+        user: config.email.user,
+        pass: config.email.pass,
+      },
+    });
+  }
+  return transporter;
+}
+
+export class MailerService {
+  /**
+   * Sends an email if SMTP is configured; otherwise logs a warning and
+   * returns false so callers can fall back gracefully (e.g. console-logging
+   * a link) rather than throwing and breaking the request.
+   */
+  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    const t = getTransporter();
+    if (!t) {
+      console.warn('Email not sent - SMTP is not configured (EMAIL_USER/EMAIL_PASS missing).');
+      return false;
+    }
+
+    try {
+      await t.sendMail({
+        from: `"Protecther Safety Dashboard" <${config.email.user}>`,
+        to,
+        subject,
+        html,
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to send email:', err);
+      return false;
+    }
+  }
+
+  async sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
+    return this.sendEmail(
+      to,
+      'Reset your Protecther Safety Dashboard password',
+      `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color: #1e293b;">Reset your password</h2>
+          <p>We received a request to reset the password for your Protecther Safety Dashboard account.</p>
+          <p>
+            <a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px;">
+              Reset Password
+            </a>
+          </p>
+          <p style="color: #64748b; font-size: 13px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `
+    );
+  }
+}
+
+export const mailerService = new MailerService();
