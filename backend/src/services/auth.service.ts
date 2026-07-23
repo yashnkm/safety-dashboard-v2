@@ -6,6 +6,9 @@ import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { mailerService } from './mailer.service';
 
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MINUTES = 15;
+
 export class AuthService {
   async login(email: string, password: string) {
     const user = await prisma.user.findUnique({
@@ -24,15 +27,47 @@ export class AuthService {
       throw new AppError(401, 'Invalid credentials');
     }
 
+    // An expired lock is treated as no lock at all - it's cleared for real
+    // below, once either a fresh lockout or a successful login happens.
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new AppError(
+        423,
+        `Account temporarily locked due to too many failed login attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`
+      );
+    }
+
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
+      const attempts = user.failedLoginAttempts + 1;
+      const isNowLocked = attempts >= MAX_FAILED_LOGIN_ATTEMPTS;
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: isNowLocked ? 0 : attempts,
+          // Reset to 0 on lockout so the user gets a full fresh set of
+          // attempts once the lock naturally expires, rather than starting
+          // pre-loaded at the threshold.
+          lockedUntil: isNowLocked
+            ? new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000)
+            : null,
+        },
+      });
+
+      if (isNowLocked) {
+        throw new AppError(
+          423,
+          `Account temporarily locked due to too many failed login attempts. Try again in ${LOCKOUT_DURATION_MINUTES} minutes.`
+        );
+      }
       throw new AppError(401, 'Invalid credentials');
     }
 
-    // Update last login
+    // Successful login clears any failure history and expired lock.
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: new Date() },
+      data: { lastLogin: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
     // Create audit log

@@ -69,6 +69,8 @@ model User {
   accessLevel  AccessLevel @default(ALL_SITES) @map("access_level")
   isActive     Boolean  @default(true) @map("is_active")
   lastLogin    DateTime? @map("last_login")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
