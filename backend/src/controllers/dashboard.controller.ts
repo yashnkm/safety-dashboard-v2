@@ -49,6 +49,42 @@ export class DashboardController {
   }
 
   /**
+   * GET /api/dashboard/metrics/aggregate
+   * Real "All Sites" aggregation - combines every site's data for the
+   * period into one company-wide scorecard, rather than showing one
+   * arbitrary site's numbers.
+   */
+  async getAggregatedMetrics(req: AuthRequest, res: Response) {
+    const { month, year, companyId: queryCompanyId } = req.query;
+    const role = req.user!.role;
+
+    if (!month || !year) {
+      throw new AppError(400, 'month and year are required');
+    }
+
+    // SUPER_ADMIN can see any company's sites, so blending "all sites they
+    // can see" across unrelated client companies would be meaningless -
+    // they must pick a specific company first. Everyone else is always
+    // scoped to their own company.
+    let companyId: string;
+    if (role === 'SUPER_ADMIN') {
+      if (!queryCompanyId) {
+        throw new AppError(400, 'companyId is required for SUPER_ADMIN');
+      }
+      companyId = queryCompanyId as string;
+    } else {
+      companyId = req.user!.companyId;
+    }
+
+    const metric = await safetyMetricsService.getAggregatedMetrics(companyId, month as string, parseInt(year as string));
+
+    res.json({
+      status: 'success',
+      data: metric,
+    });
+  }
+
+  /**
    * GET /api/dashboard/metrics/:siteId/:year/:month
    * Get metrics for specific site and period
    */

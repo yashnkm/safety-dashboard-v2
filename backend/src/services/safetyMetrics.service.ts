@@ -128,6 +128,70 @@ export class SafetyMetricsService {
   }
 
   /**
+   * "All Sites" for a company, for real: sums each parameter's target/actual
+   * across every site's record for the period (as if the company were one
+   * big site), then scores the combined totals through the exact same
+   * formulas as a single site - including LTIFR/TRIR, which naturally works
+   * out correctly since it's computed from summed incidents over summed
+   * hours worked, not an average of each site's individual rate.
+   *
+   * Percentage-shaped parameters (already 0-100, not a count) are averaged
+   * across sites that reported them instead of summed - summing two 100%
+   * compliance rates would wrongly read as 200%.
+   */
+  async getAggregatedMetrics(companyId: string, month: string, year: number) {
+    const records = await prisma.safetyMetrics.findMany({
+      where: { month, year, site: { companyId } },
+      include: {
+        site: { select: { siteName: true, siteCode: true } },
+      },
+    });
+
+    if (records.length === 0) {
+      return null;
+    }
+
+    const percentageFieldNames = new Set(this.PERCENTAGE_FIELDS.flat());
+    const combined: Record<string, number> = {};
+
+    for (const [targetField, actualField] of this.TARGET_ACTUAL_FIELDS) {
+      for (const field of [targetField, actualField]) {
+        const values = records.map((r) => Number((r as any)[field]) || 0);
+        combined[field] = percentageFieldNames.has(field)
+          ? values.reduce((a, b) => a + b, 0) / values.length
+          : values.reduce((a, b) => a + b, 0);
+      }
+    }
+
+    const weights = await this.getCompanyWeights(companyId);
+    const processedData = this.calculateAllParameterScores(combined, weights);
+    const totalScore = this.calculateTotalScore(processedData, weights);
+    const percentage = (totalScore / 100) * 100;
+    const rating = this.getRating(percentage);
+    const kpis = this.calculateKPIs(processedData);
+
+    return {
+      id: `aggregate-${companyId}-${month}-${year}`,
+      siteId: 'all',
+      companyId,
+      month,
+      year,
+      ...combined,
+      ...processedData,
+      totalScore,
+      percentage,
+      rating,
+      maxScore: 100,
+      kpis,
+      site: {
+        siteName: `All Sites (${records.length} site${records.length === 1 ? '' : 's'})`,
+        siteCode: 'ALL',
+      },
+      sitesIncluded: records.map((r) => r.site.siteName),
+    };
+  }
+
+  /**
    * Get metrics for a specific site and period
    */
   async getMetricsBySiteAndPeriod(
@@ -808,6 +872,7 @@ export class SafetyMetricsService {
           id: true,
           siteName: true,
           siteCode: true,
+          companyId: true,
           company: {
             select: {
               companyName: true,

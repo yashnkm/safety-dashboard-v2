@@ -17,6 +17,7 @@ export interface Site {
   id: string;
   siteName: string;
   siteCode: string;
+  companyId?: string;
   company?: {
     companyName: string;
     logoUrl?: string | null;
@@ -47,6 +48,22 @@ export const dashboardService = {
     if (filters?.year) params.append('year', filters.year.toString());
 
     const response = await api.get(`/dashboard/metrics?${params.toString()}`);
+    return response.data.data;
+  },
+
+  /**
+   * Real "All Sites" aggregation - combines every site's data for the
+   * period into one company-wide scorecard. companyId is required for
+   * SUPER_ADMIN (they must pick a company first); ignored for everyone
+   * else, who are always scoped to their own company server-side.
+   */
+  getAggregatedMetrics: async (filters: { companyId?: string; month: string; year: number }) => {
+    const params = new URLSearchParams();
+    if (filters.companyId) params.append('companyId', filters.companyId);
+    params.append('month', filters.month);
+    params.append('year', filters.year.toString());
+
+    const response = await api.get(`/dashboard/metrics/aggregate?${params.toString()}`);
     return response.data.data;
   },
 

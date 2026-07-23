@@ -14,6 +14,13 @@ router.get('/kpi', asyncHandler(dashboardController.getKPISummary.bind(dashboard
 // Get all metrics with filters
 router.get('/metrics', asyncHandler(dashboardController.getMetrics.bind(dashboardController)));
 
+// Real "All Sites" aggregation - must come before the /:siteId/:year/:month
+// route below, otherwise Express would match "aggregate" as a siteId.
+router.get(
+  '/metrics/aggregate',
+  asyncHandler(dashboardController.getAggregatedMetrics.bind(dashboardController))
+);
+
 // Get specific metric by site and period
 router.get(
   '/metrics/:siteId/:year/:month',

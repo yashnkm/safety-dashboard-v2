@@ -35,6 +35,11 @@ interface Site {
   };
 }
 
+interface Company {
+  id: string;
+  companyName: string;
+}
+
 interface AppSidebarProps {
   sites?: Site[];
   selectedSite: string;
@@ -46,6 +51,11 @@ interface AppSidebarProps {
   enabledCategories: Record<string, boolean>;
   onCategoryToggle: (category: string) => void;
   loading?: boolean;
+  // SUPER_ADMIN only - undefined for everyone else, since they're always
+  // scoped to their own company already.
+  companies?: Company[];
+  selectedCompanyId?: string;
+  onCompanyChange?: (companyId: string) => void;
 }
 
 const months = [
@@ -89,6 +99,9 @@ export default function AppSidebar({
   enabledCategories,
   onCategoryToggle,
   loading,
+  companies,
+  selectedCompanyId,
+  onCompanyChange,
 }: AppSidebarProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
@@ -229,6 +242,32 @@ export default function AppSidebar({
 
         {/* Filters Section */}
         <div className="space-y-4">
+          {companies && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Building2 className="h-3 w-3" />
+                Company
+              </label>
+              <Select
+                value={selectedCompanyId || 'none'}
+                onValueChange={(v) => onCompanyChange?.(v === 'none' ? '' : v)}
+                disabled={loading}
+              >
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="Select company" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                  <SelectItem value="none">All companies (pick a site directly)</SelectItem>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
               <Building2 className="h-3 w-3" />

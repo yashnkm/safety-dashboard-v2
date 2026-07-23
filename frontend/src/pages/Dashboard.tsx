@@ -9,6 +9,7 @@ import ParametersBarChart from '@/components/dashboard/ParametersBarChart.tsx';
 import ParameterCard from '@/components/dashboard/ParameterCard.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { dashboardService } from '@/services/dashboard.service.ts';
+import { adminService } from '@/services/admin.service.ts';
 import { useAuthStore } from '@/store/authStore.ts';
 import {
   Users,
@@ -60,6 +61,11 @@ export default function Dashboard() {
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(monthNames[currentDate.getMonth()]);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  // SUPER_ADMIN sees sites across every client company, so "All Sites"
+  // aggregation requires picking a specific company first - blending two
+  // unrelated clients' data into one number would be meaningless. Unused
+  // for everyone else, who are always scoped to their own company already.
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   // Category visibility state - all enabled by default
   const [enabledCategories, setEnabledCategories] = useState<Record<CategoryKey, boolean>>({
@@ -103,7 +109,24 @@ export default function Dashboard() {
     queryFn: dashboardService.getSites,
   });
 
-  const sites = sitesResponse?.data || [];
+  const allSites = sitesResponse?.data || [];
+
+  // Only SUPER_ADMIN needs the company list, to scope "All Sites" to a
+  // single client rather than blending every company together.
+  const { data: companiesResponse } = useQuery({
+    queryKey: ['companies-for-dashboard'],
+    queryFn: adminService.getAllCompanies,
+    enabled: user?.role === 'SUPER_ADMIN',
+  });
+  const companies = companiesResponse?.data || [];
+
+  // For SUPER_ADMIN with a company picked, scope the sidebar's site list to
+  // just that company. Otherwise (regular users, or SUPER_ADMIN before
+  // picking a company) show everything the sites query already returned.
+  const sites =
+    user?.role === 'SUPER_ADMIN' && selectedCompanyId
+      ? allSites.filter((s: any) => s.companyId === selectedCompanyId)
+      : allSites;
 
   // Fetch every accessible metric (unfiltered) once, purely to find the most
   // recent month/year that actually has data — so the dashboard doesn't default
@@ -131,29 +154,38 @@ export default function Dashboard() {
     }
   }, [latestPeriodData]);
 
+  // "All Sites" now means a real combined scorecard, not just whichever
+  // record the API happened to return first. SUPER_ADMIN must pick a
+  // company before that aggregation means anything; everyone else is
+  // always scoped to their own company server-side already.
+  const isAllSites = selectedSite === 'all';
+  const canAggregate = !isAllSites || user?.role !== 'SUPER_ADMIN' || !!selectedCompanyId;
+
+  const fetchMetricsForPeriod = (month: string, year: number) => {
+    if (isAllSites) {
+      return dashboardService
+        .getAggregatedMetrics({
+          companyId: user?.role === 'SUPER_ADMIN' ? selectedCompanyId : undefined,
+          month,
+          year,
+        })
+        .then((m) => (m ? [m] : []));
+    }
+    return dashboardService.getMetrics({ siteId: selectedSite, month, year });
+  };
+
   // Fetch metrics data
   const { data: metricsData, isLoading: metricsLoading } = useQuery({
-    queryKey: ['metrics', selectedSite, selectedMonth, selectedYear],
-    queryFn: () =>
-      dashboardService.getMetrics({
-        siteId: selectedSite !== 'all' ? selectedSite : undefined,
-        month: selectedMonth,
-        year: selectedYear,
-      }),
-    enabled: !!selectedMonth && !!selectedYear,
+    queryKey: ['metrics', selectedSite, selectedMonth, selectedYear, selectedCompanyId],
+    queryFn: () => fetchMetricsForPeriod(selectedMonth, selectedYear),
+    enabled: !!selectedMonth && !!selectedYear && canAggregate,
   });
 
   // Fetch yearly trend data (all months for the selected year)
   const { data: yearlyTrendData, isLoading: trendLoading } = useQuery({
-    queryKey: ['yearlyTrend', selectedSite, selectedYear],
+    queryKey: ['yearlyTrend', selectedSite, selectedYear, selectedCompanyId],
     queryFn: async () => {
-      const promises = monthNames.map((month) =>
-        dashboardService.getMetrics({
-          siteId: selectedSite !== 'all' ? selectedSite : undefined,
-          month: month,
-          year: selectedYear,
-        })
-      );
+      const promises = monthNames.map((month) => fetchMetricsForPeriod(month, selectedYear));
       const results = await Promise.all(promises);
       return results.map((data, index) => ({
         month: monthNames[index].substring(0, 3), // Jan, Feb, etc.
@@ -161,7 +193,7 @@ export default function Dashboard() {
         target: 100,
       }));
     },
-    enabled: !!selectedYear,
+    enabled: !!selectedYear && canAggregate,
   });
 
   const handleCategoryToggle = (category: string) => {
@@ -653,21 +685,30 @@ export default function Dashboard() {
   const cumulativeScore = calculateCumulativeScore();
 
   // Which site/company the numbers on screen actually belong to. "All Sites"
-  // does not aggregate across sites — it just shows whichever record the API
-  // returns first — so make that explicit instead of leaving it ambiguous,
-  // especially once more than one site has data for the same period.
+  // is a real combined scorecard now (see isAllSites above), so there's
+  // nothing ambiguous left to flag there - this only still matters for the
+  // single-site case, kept for clarity about which company a SUPER_ADMIN
+  // is currently looking at.
   const getDataSourceInfo = () => {
     if (!metricsData || metricsData.length === 0) return null;
 
-    const distinctSiteIds = new Set(metricsData.map((m: any) => m.siteId));
     const primary = metricsData[0];
+
+    if (isAllSites) {
+      const companyName =
+        user?.role === 'SUPER_ADMIN'
+          ? companies.find((c: any) => c.id === selectedCompanyId)?.companyName
+          : (user as any)?.company?.companyName;
+      const label = companyName ? `All Sites — ${companyName}` : primary.site?.siteName || 'All Sites';
+      return { label, isAmbiguous: false, otherCount: 0 };
+    }
+
     const matchedSite = sites.find((s: any) => s.id === primary.siteId);
     const siteName = matchedSite?.siteName || primary.site?.siteName || 'Unknown site';
     const companyName = matchedSite?.company?.companyName;
     const label = companyName ? `${siteName} (${companyName})` : siteName;
-    const otherCount = distinctSiteIds.size - 1;
 
-    return { label, isAmbiguous: otherCount > 0, otherCount };
+    return { label, isAmbiguous: false, otherCount: 0 };
   };
 
   const dataSourceInfo = getDataSourceInfo();
@@ -732,6 +773,9 @@ export default function Dashboard() {
           enabledCategories={enabledCategories}
           onCategoryToggle={handleCategoryToggle}
           loading={sitesLoading}
+          companies={user?.role === 'SUPER_ADMIN' ? companies : undefined}
+          selectedCompanyId={selectedCompanyId}
+          onCompanyChange={setSelectedCompanyId}
         />
       }
     >
@@ -757,6 +801,14 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Prompt to pick a company before "All Sites" can aggregate anything */}
+        {!canAggregate && (
+          <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-amber-50 border-amber-200 text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>Select a company in the sidebar to see its combined "All Sites" scorecard.</span>
+          </div>
+        )}
 
         {/* Data Source Label */}
         {!metricsLoading && dataSourceInfo && (
