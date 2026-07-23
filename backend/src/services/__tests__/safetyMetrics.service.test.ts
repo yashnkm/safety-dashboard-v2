@@ -314,6 +314,24 @@ describe('calculateAllParameterScores', () => {
     expect(processed.wasteGeneratedScore).toBeCloseTo((expectedWasteWeighted / 2) * 10, 5);
   });
 
+  it('awards full weight for Upcoming Trainings with a blank target but real trainings scheduled', () => {
+    // Proactive scheduling ahead of time is a good sign, not a backlog -
+    // matches the treatment already given to Safety Observation Raised.
+    const processed = service.calculateAllParameterScores({
+      upcomingTrainingsTarget: 0,
+      upcomingTrainingsActual: 4,
+    });
+    expect(processed.upcomingTrainingsScore).toBeCloseTo(10, 5);
+  });
+
+  it('still scores Upcoming Trainings as 0 when both target and actual are 0 (no data)', () => {
+    const processed = service.calculateAllParameterScores({
+      upcomingTrainingsTarget: 0,
+      upcomingTrainingsActual: 0,
+    });
+    expect(processed.upcomingTrainingsScore).toBeCloseTo(0, 5);
+  });
+
   it('leaves parameters absent from input untouched (no target/actual pair supplied)', () => {
     const processed = service.calculateAllParameterScores({ manDaysTarget: 100, manDaysActual: 100 });
     expect(processed.safeWorkHoursScore).toBeUndefined();

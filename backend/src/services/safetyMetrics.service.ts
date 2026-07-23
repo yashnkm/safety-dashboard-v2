@@ -1003,7 +1003,10 @@ export class SafetyMetricsService {
       { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: weights.safetyObservationRaised, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true },
       { target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore', weight: weights.workforceTrainedPercent, isIncident: false, lowerIsBetter: false }, // NEW
       { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: weights.ppeObservations, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
-      { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: weights.upcomingTrainings, isIncident: false, lowerIsBetter: false }, // NEW
+      // Proactive scheduling ahead of time is a good sign, not a backlog -
+      // a blank target with real trainings scheduled earns full credit
+      // instead of 0, same treatment as Safety Observation Raised above.
+      { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: weights.upcomingTrainings, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
 
       // Documentation (1 pt each)
       { target: 'nonComplianceCloseTarget', actual: 'nonComplianceCloseActual', score: 'nonComplianceCloseScore', weight: weights.nonComplianceClose, isIncident: false, lowerIsBetter: false },
