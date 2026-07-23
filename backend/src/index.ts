@@ -7,6 +7,7 @@ import { config } from './config/env';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { cleanupOrphanedLogos } from './services/logoCleanup.service';
+import { alertService } from './services/alert.service';
 
 const app = express();
 
@@ -80,6 +81,12 @@ app.listen(PORT, () => {
 // nothing pointing at it. Company create/update/delete already trigger an
 // immediate sweep; this just catches whatever those miss.
 setInterval(cleanupOrphanedLogos, 60 * 60 * 1000); // hourly
+
+// Daily reminder for any open/in-progress corrective action past its due
+// date. Repeats every day an item stays overdue - there's no per-item
+// suppression tracking yet, so this intentionally re-sends until the CAPA
+// is closed or its due date is pushed out.
+setInterval(() => alertService.runOverdueCapaDigest(), 24 * 60 * 60 * 1000); // daily
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {

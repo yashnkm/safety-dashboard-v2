@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditLogService } from './auditLog.service';
+import { alertService } from './alert.service';
 
 const CAPA_INCLUDE = {
   site: { select: { siteName: true, siteCode: true } },
@@ -109,6 +110,8 @@ export class CapaService {
       oldValues: null,
       newValues: data,
     });
+
+    await alertService.notifyIfHighPriorityCapa(companyId, capa);
 
     return capa;
   }

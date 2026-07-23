@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditLogService } from './auditLog.service';
+import { alertService } from './alert.service';
 
 interface MetricsFilters {
   companyId?: string;
@@ -282,6 +283,15 @@ export class SafetyMetricsService {
       ipAddress: auditContext?.ipAddress,
       userAgent: auditContext?.userAgent,
     });
+
+    await alertService.notifyIfCriticalIncident(
+      site.companyId,
+      metric.site.siteName,
+      month,
+      year,
+      metric,
+      existing
+    );
 
     return metric;
   }
@@ -863,7 +873,7 @@ export class SafetyMetricsService {
     // Verify site exists
     const site = await prisma.site.findUnique({
       where: { id: siteId },
-      select: { companyId: true },
+      select: { companyId: true, siteName: true },
     });
 
     if (!site) {
@@ -966,6 +976,15 @@ export class SafetyMetricsService {
           ipAddress: auditContext?.ipAddress,
           userAgent: auditContext?.userAgent,
         });
+
+        await alertService.notifyIfCriticalIncident(
+          site.companyId,
+          site.siteName,
+          month,
+          year,
+          savedMetric,
+          existing
+        );
 
         results.success++;
       } catch (error: any) {
