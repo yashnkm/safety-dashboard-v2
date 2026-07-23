@@ -6,6 +6,7 @@ import ResetPassword from '@/pages/ResetPassword.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
 import ExcelImport from '@/pages/ExcelImport.tsx';
 import Admin from '@/pages/Admin.tsx';
+import CapaTracking from '@/pages/CapaTracking.tsx';
 import ProtectedRoute from '@/components/auth/ProtectedRoute.tsx';
 import { useAuthStore } from '@/store/authStore.ts';
 
@@ -57,6 +58,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <Admin />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/capa"
+            element={
+              <ProtectedRoute>
+                <CapaTracking />
               </ProtectedRoute>
             }
           />

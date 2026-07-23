@@ -21,10 +21,11 @@ model Company {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  sites            Site[]
-  users            User[]
-  companySettings  CompanySettings?
-  auditLogs        AuditLog[]
+  sites             Site[]
+  users             User[]
+  companySettings   CompanySettings?
+  auditLogs         AuditLog[]
+  correctiveActions CorrectiveAction[]
 
   @@map("company")
 }
@@ -47,10 +48,11 @@ model Site {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  safetyMetrics    SafetyMetrics[]
-  userSiteAccess   UserSiteAccess[]
-  auditLogs        AuditLog[]
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  safetyMetrics     SafetyMetrics[]
+  userSiteAccess    UserSiteAccess[]
+  auditLogs         AuditLog[]
+  correctiveActions CorrectiveAction[]
 
   @@unique([companyId, siteCode])
   @@map("sites")
@@ -70,12 +72,15 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  company              Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  userSiteAccess       UserSiteAccess[]
-  safetyMetrics        SafetyMetrics[]
-  auditLogs            AuditLog[]
-  passwordResetTokens  PasswordResetToken[]
-  companySettingsUpdates CompanySettings[]
+  company                   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userSiteAccess            UserSiteAccess[]
+  safetyMetrics             SafetyMetrics[]
+  auditLogs                 AuditLog[]
+  passwordResetTokens       PasswordResetToken[]
+  companySettingsUpdates    CompanySettings[]
+  correctiveActionsAssigned CorrectiveAction[] @relation("CapaAssignee")
+  correctiveActionsCreated  CorrectiveAction[] @relation("CapaCreator")
+  correctiveActionsClosed   CorrectiveAction[] @relation("CapaCloser")
 
   @@map("users")
 }
@@ -391,6 +396,58 @@ model AuditLog {
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+// ==================== CORRECTIVE ACTIONS (CAPA) ====================
+enum CapaStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum CapaPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model CorrectiveAction {
+  id               String       @id @default(uuid())
+  companyId        String       @map("company_id")
+  siteId           String?      @map("site_id")
+  title            String
+  description      String?
+  // Optional context tying this CAPA back to whatever prompted it - a
+  // specific parameter/month/year on the safety scorecard - without a hard
+  // foreign key, since SafetyMetrics rows are keyed by (site, month, year)
+  // and a CAPA may span multiple, or none (freeform issues).
+  linkedParameter  String?      @map("linked_parameter")
+  linkedMonth      String?      @map("linked_month")
+  linkedYear       Int?         @map("linked_year")
+  priority         CapaPriority @default(MEDIUM)
+  status           CapaStatus   @default(OPEN)
+  dueDate          DateTime?    @map("due_date")
+  rootCause        String?      @map("root_cause")
+  correctiveAction String?      @map("corrective_action")
+  closureNotes     String?      @map("closure_notes")
+  assignedToId     String?      @map("assigned_to")
+  createdById      String?      @map("created_by")
+  closedById       String?      @map("closed_by")
+  closedAt         DateTime?    @map("closed_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  assignedTo User?   @relation("CapaAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User?   @relation("CapaCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  closedBy   User?   @relation("CapaCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([siteId])
+  @@index([status])
+  @@map("corrective_actions")
 }
 
 // ==================== PASSWORD RESET ====================
