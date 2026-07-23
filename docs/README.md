@@ -247,23 +247,15 @@ VITE_API_URL=http://localhost:5000/api
 
 ## 🚀 Deployment
 
-This application is ready for production deployment on **100% free hosting**!
+This application is self-hosted on a Windows PC, running 24/7 via PM2 with a Cloudflare Tunnel for public access.
 
-### Quick Deploy (5 minutes)
-See **[QUICK_DEPLOY.md](./QUICK_DEPLOY.md)** for the fastest deployment path.
+### Deployment Guide
+See **[deployment/LOCAL_DEPLOYMENT_GUIDE.md](./deployment/LOCAL_DEPLOYMENT_GUIDE.md)** for full self-hosted setup instructions.
 
-### Comprehensive Guide
-See **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** for detailed step-by-step instructions.
-
-### Deployment Checklist
-See **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** for pre-deployment verification.
-
-### Hosting Stack (All Free Tiers)
-- **Frontend**: Vercel (Unlimited)
-- **Backend**: Render.com (750 hours/month)
-- **Database**: Supabase (500MB) or Vercel Postgres (256MB)
-
-**Total Cost: $0/month** ✅
+### Hosting Stack
+- **Frontend + Backend**: PM2 (cluster mode) on the host machine
+- **Database**: Cloud PostgreSQL (Prisma-managed)
+- **Public access**: Cloudflare Tunnel (`cloudflared-safety` Windows service)
 
 ## 🔧 Helper Scripts
 

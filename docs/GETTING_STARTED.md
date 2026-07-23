@@ -202,9 +202,7 @@ lsof -ti:5173 | xargs kill -9
 ## 📖 Documentation
 
 - **README.md** - Project overview and architecture
-- **DEPLOYMENT_GUIDE.md** - Full deployment instructions
-- **QUICK_DEPLOY.md** - 5-minute production deployment
-- **DEPLOYMENT_CHECKLIST.md** - Pre-deployment verification
+- **[deployment/LOCAL_DEPLOYMENT_GUIDE.md](deployment/LOCAL_DEPLOYMENT_GUIDE.md)** - Self-hosted deployment instructions
 
 ## 🔐 Security Notes
 
@@ -256,7 +254,7 @@ lsof -ti:5173 | xargs kill -9
 
 ## 🚀 Ready to Deploy?
 
-See **[QUICK_DEPLOY.md](./QUICK_DEPLOY.md)** to deploy to production in 5 minutes with **100% free hosting**!
+See **[deployment/LOCAL_DEPLOYMENT_GUIDE.md](deployment/LOCAL_DEPLOYMENT_GUIDE.md)** for self-hosted deployment instructions.
 
 ---
 

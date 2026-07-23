@@ -317,19 +317,15 @@ npm run lint         # Run ESLint
 
 ## 🚀 Deployment
 
-This application is ready for **100% FREE hosting**!
+This application is self-hosted on a Windows PC, running 24/7 via PM2 with a Cloudflare Tunnel for public access.
 
-### Hosting Stack (Free Tiers)
-- **Frontend**: Vercel (Unlimited)
-- **Backend**: Render.com (750 hours/month)
-- **Database**: Supabase (500MB) or Vercel Postgres (256MB)
+### Hosting Stack
+- **Frontend + Backend**: PM2 (cluster mode) on the host machine
+- **Database**: Cloud PostgreSQL (Prisma-managed)
+- **Public access**: Cloudflare Tunnel (`cloudflared-safety` Windows service)
 
-**Total Cost: $0/month** ✅
-
-### Deployment Guides
-- **[Quick Deploy](docs/deployment/QUICK_DEPLOY.md)** - 5-minute setup
-- **[Comprehensive Guide](docs/deployment/DEPLOYMENT_GUIDE.md)** - Detailed instructions
-- **[Deployment Checklist](docs/deployment/DEPLOYMENT_CHECKLIST.md)** - Pre-deployment verification
+### Deployment Guide
+- **[Local Deployment Guide](docs/deployment/LOCAL_DEPLOYMENT_GUIDE.md)** - Full self-hosted setup instructions
 
 ---
 
@@ -340,9 +336,7 @@ This application is ready for **100% FREE hosting**!
 - [Quick Start](docs/QUICK_START.md)
 
 ### Deployment
-- [Quick Deploy Guide](docs/deployment/QUICK_DEPLOY.md)
-- [Deployment Guide](docs/deployment/DEPLOYMENT_GUIDE.md)
-- [Deployment Checklist](docs/deployment/DEPLOYMENT_CHECKLIST.md)
+- [Local Deployment Guide](docs/deployment/LOCAL_DEPLOYMENT_GUIDE.md)
 
 ### Development
 - [Development Progress](docs/development/PROGRESS.md)
