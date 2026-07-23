@@ -1,6 +1,6 @@
 # Safety Dashboard V2 - Multi-Tenant Enterprise Edition
 
-Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.
+Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 32 safety parameters.
 
 ## 🚀 Tech Stack
 
@@ -66,12 +66,12 @@ safety-dashboard-v2/
 - **Site** - Multiple sites per company
 - **User** - Role-based users (SUPER_ADMIN, ADMIN, MANAGER, VIEWER)
 - **UserSiteAccess** - Site-specific access control
-- **SafetyMetrics** - 18 safety parameters (Target/Actual/Score)
+- **SafetyMetrics** - 32 safety parameters (Target/Actual/Score)
 - **CompanySettings** - Configurable weights & thresholds
 - **AuditLog** - Audit trail for all changes
 - **PasswordResetToken** - Password reset functionality
 
-### 18 Safety Parameters:
+### 32 Safety Parameters:
 1. Man Days (Target, Actual, Score)
 2. Safe Work Hours (Target, Actual, Score)
 3. Safety Induction (Target, Actual, Score)
@@ -90,6 +90,20 @@ safety-dashboard-v2/
 16. First Aid Injury (Target, Actual, Score)
 17. Medical Treatment Injury (Target, Actual, Score)
 18. Lost Time Injury (Target, Actual, Score)
+19. Recordable Incidents (Target, Actual, Score)
+20. PPE Compliance Rate (Target, Actual, Score)
+21. PPE Observations (Target, Actual, Score)
+22. Workforce Trained (Target, Actual, Score)
+23. Upcoming Trainings (Target, Actual, Score)
+24. Overdue Trainings (Target, Actual, Score)
+25. Waste Generated (Target, Actual, Score)
+26. Waste Disposed (Target, Actual, Score)
+27. Energy Consumption (Target, Actual, Score)
+28. Water Consumption (Target, Actual, Score)
+29. Spills Incidents (Target, Actual, Score)
+30. Environmental Incidents (Target, Actual, Score)
+31. Health Checkup Compliance (Target, Actual, Score)
+32. Water Quality Test (Target, Actual, Score)
 
 ## 🛠️ Setup Instructions
 
@@ -175,7 +189,7 @@ Frontend will run on: http://localhost:5173
 - [x] TypeScript frontend & backend
 - [x] Tailwind CSS + Shadcn UI setup
 - [x] Prisma ORM with multi-tenant schema
-- [x] 18 safety parameters model
+- [x] 32 safety parameters model
 - [x] **Role-based access control (RBAC)**
 - [x] **Site-level access restrictions**
 - [x] **JWT authentication system**
@@ -292,7 +306,7 @@ Generates a bcrypt hash for manual user creation.
 - **KPI Summary Cards**: Key metrics at a glance
 - **Gauge Charts**: Visual performance indicators
 - **Monthly Trends**: Area charts with statistics
-- **Parameter Details**: 18 safety metrics with bar charts
+- **Parameter Details**: 32 safety metrics with bar charts
 - **Filtering**: By site, month, and year
 - **Auto-refresh**: After Excel import
 

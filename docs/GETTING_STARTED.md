@@ -214,7 +214,7 @@ lsof -ti:5173 | xargs kill -9
 
 **Production:**
 - Use strong passwords (16+ characters)
-- Enable HTTPS (automatic with Vercel/Render)
+- Enable HTTPS (handled by the Cloudflare Tunnel)
 - Rotate JWT secrets periodically
 - Enable rate limiting (already configured)
 
@@ -232,7 +232,7 @@ lsof -ti:5173 | xargs kill -9
 - **VIEWER**: Read-only access
 
 ### Dashboard
-- 18 safety parameters tracked
+- 32 safety parameters tracked
 - Monthly trend analysis
 - Visual KPI indicators (gauge charts)
 - Excel import/export

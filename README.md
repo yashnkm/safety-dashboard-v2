@@ -1,6 +1,6 @@
 # Safety Dashboard V2 - Multi-Tenant Enterprise Edition
 
-> Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 18 safety parameters.
+> Modern, TypeScript-based safety statistics dashboard with multi-tenancy, authentication, and 32 safety parameters.
 
 [![Tech Stack](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
@@ -190,14 +190,14 @@ CORS_ORIGIN=http://localhost:5173
 2. **Site** - Multiple sites per company
 3. **User** - Role-based access (SUPER_ADMIN, ADMIN, MANAGER, VIEWER)
 4. **UserSiteAccess** - Site-specific permissions
-5. **SafetyMetrics** - 18 safety parameters
+5. **SafetyMetrics** - 32 safety parameters
 6. **CompanySettings** - Configurable weights
 7. **AuditLog** - Audit trail
 8. **PasswordResetToken** - Password reset
 
 ---
 
-## 📊 18 Safety Parameters
+## 📊 32 Safety Parameters
 
 ### Categories
 
@@ -207,14 +207,29 @@ CORS_ORIGIN=http://localhost:5173
 **Training (3)**
 - Safety Induction, Toolbox Talk, Job Specific Training
 
-**Inspection & Compliance (6)**
-- Formal Safety Inspection, Non-Compliance Raised/Close, Safety Observation Raised/Close, Work Permit, Safe Work Method Statement
+**Inspection & Compliance (5)**
+- Formal Safety Inspection, Non-Compliance Raised/Close, Safety Observation Raised/Close
+
+**Documentation (2)**
+- Work Permit Issued, Safe Work Method Statement
 
 **Preparedness & Audit (2)**
 - Emergency Mock Drills, Internal Audit
 
-**Incidents (4)**
-- Near Miss, First Aid Injury, Medical Treatment Injury, Lost Time Injury
+**Incidents (5)**
+- Near Miss, First Aid Injury, Medical Treatment Injury, Lost Time Injury, Recordable Incidents
+
+**PPE Compliance (2)**
+- PPE Compliance Rate, PPE Observations
+
+**Workforce Training (3)**
+- Workforce Trained, Upcoming Trainings, Overdue Trainings
+
+**Environment (6)**
+- Waste Generated, Waste Disposed, Energy Consumption, Water Consumption, Spills Incidents, Environmental Incidents
+
+**Health & Hygiene (2)**
+- Health Checkup Compliance, Water Quality Test
 
 Each parameter tracks: **Target**, **Actual**, **Score**
 
