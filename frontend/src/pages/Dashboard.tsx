@@ -676,12 +676,32 @@ export default function Dashboard() {
   // were left blank (target=0, actual=0). Surfaced separately from the score
   // itself so a partially-empty month doesn't read as an outright bad one -
   // blank parameters show as "Not Reported" on their cards, not red.
+  //
+  // The official KPI score/rating (cumulativeScore, below) deliberately
+  // still counts blank parameters as 0 toward the fixed 100-point total -
+  // excluding them from the real score was considered and rejected, since
+  // it would let a site inflate its score by leaving a bad metric blank
+  // instead of reporting a real bad number. adjustedPercentage here is
+  // purely informational context alongside the unchanged official score,
+  // not a replacement for it.
   const dataCompleteness = (() => {
     if (!metricsData || metricsData.length === 0) return null;
-    const allParams = Object.values(displayData).flat() as Array<{ target: number; actual: number; isIncident?: boolean }>;
+    const allParams = Object.values(displayData).flat() as Array<{
+      target: number;
+      actual: number;
+      isIncident?: boolean;
+      score: number;
+      weight: number;
+    }>;
     const total = allParams.length;
-    const reported = allParams.filter((p) => p.isIncident || !(p.target === 0 && p.actual === 0)).length;
-    return { reported, total };
+    const reportedParams = allParams.filter((p) => p.isIncident || !(p.target === 0 && p.actual === 0));
+    const reported = reportedParams.length;
+
+    const reportedMaxPoints = reportedParams.reduce((sum, p) => sum + p.weight, 0);
+    const reportedAchievedPoints = reportedParams.reduce((sum, p) => sum + (p.score * p.weight) / 100, 0);
+    const adjustedPercentage = reportedMaxPoints > 0 ? (reportedAchievedPoints / reportedMaxPoints) * 100 : null;
+
+    return { reported, total, adjustedPercentage };
   })();
 
   const handleExportPdf = () => {
@@ -775,6 +795,14 @@ export default function Dashboard() {
             <span>
               {dataCompleteness.reported} of {dataCompleteness.total} parameters reported for this period —
               the rest show as <strong>Not Reported</strong>, not a poor score.
+              {dataCompleteness.adjustedPercentage !== null && (
+                <>
+                  {' '}
+                  For context, the official score above counts unreported parameters as 0 out of{' '}
+                  {cumulativeScore.maxScore}; scored only against what was actually reported, it would read{' '}
+                  <strong>{dataCompleteness.adjustedPercentage.toFixed(1)}%</strong>.
+                </>
+              )}
             </span>
           </div>
         )}
