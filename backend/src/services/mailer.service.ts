@@ -27,7 +27,7 @@ export class MailerService {
    * returns false so callers can fall back gracefully (e.g. console-logging
    * a link) rather than throwing and breaking the request. Never throws -
    * a broken/unconfigured mailer should never take down the operation
-   * (a data save, a CAPA creation) that triggered the notification.
+   * (e.g. a data save) that triggered the notification.
    */
   async sendEmail(to: string | string[], subject: string, html: string): Promise<boolean> {
     if (Array.isArray(to) && to.length === 0) {
@@ -90,50 +90,6 @@ export class MailerService {
           <ul style="color: #1e293b;">${rows}</ul>
           <p style="color: #64748b; font-size: 13px;">
             This is an automated alert - the data was just saved or imported into the Safety Dashboard.
-          </p>
-        </div>
-      `
-    );
-  }
-
-  async sendCapaPriorityAlert(
-    to: string[],
-    params: { title: string; priority: string; siteName?: string; dueDate?: string | null }
-  ): Promise<boolean> {
-    return this.sendEmail(
-      to,
-      `New ${params.priority} priority corrective action: ${params.title}`,
-      `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="color: #ea580c;">New ${params.priority} priority corrective action</h2>
-          <p><strong>${params.title}</strong></p>
-          ${params.siteName ? `<p>Site: ${params.siteName}</p>` : ''}
-          ${params.dueDate ? `<p>Due: ${new Date(params.dueDate).toLocaleDateString()}</p>` : ''}
-          <p style="color: #64748b; font-size: 13px;">View it in the CAPA Tracking section of the Safety Dashboard.</p>
-        </div>
-      `
-    );
-  }
-
-  async sendCapaOverdueDigest(
-    to: string[],
-    items: { title: string; siteName?: string; dueDate: string; priority: string }[]
-  ): Promise<boolean> {
-    const rows = items
-      .map(
-        (i) =>
-          `<li><strong>${i.title}</strong>${i.siteName ? ` (${i.siteName})` : ''} — ${i.priority}, due ${new Date(i.dueDate).toLocaleDateString()}</li>`
-      )
-      .join('');
-    return this.sendEmail(
-      to,
-      `${items.length} overdue corrective action${items.length === 1 ? '' : 's'}`,
-      `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="color: #dc2626;">Overdue corrective actions</h2>
-          <ul style="color: #1e293b;">${rows}</ul>
-          <p style="color: #64748b; font-size: 13px;">
-            This is a daily reminder for any open/in-progress corrective action past its due date.
           </p>
         </div>
       `

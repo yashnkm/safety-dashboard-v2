@@ -2,7 +2,6 @@ import { Router } from 'express';
 import authRoutes from './auth.routes';
 import dashboardRoutes from './dashboard.routes';
 import adminRoutes from './admin.routes';
-import capaRoutes from './capa.routes';
 
 const router = Router();
 
@@ -10,7 +9,6 @@ const router = Router();
 router.use('/auth', authRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/admin', adminRoutes);
-router.use('/capa', capaRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

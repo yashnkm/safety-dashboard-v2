@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Settings,
   Upload,
-  ClipboardList,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -215,13 +214,6 @@ export default function AppSidebar({
               >
                 <Building2 className="h-4 w-4" />
                 <span>Dashboard</span>
-              </button>
-              <button
-                onClick={() => navigate('/capa')}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-              >
-                <ClipboardList className="h-4 w-4" />
-                <span>CAPA Tracking</span>
               </button>
               {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
                 <button
