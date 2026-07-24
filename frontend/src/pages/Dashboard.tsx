@@ -283,6 +283,20 @@ export default function Dashboard() {
     enabled: !!trendYear && canAggregate,
   });
 
+  // Previous month's metrics, for the per-card month-over-month trend arrow.
+  // Only fetched in Monthly view (combined periods have no single "previous").
+  const prevPeriod = (() => {
+    const idx = monthNames.indexOf(selectedMonth);
+    return idx === 0
+      ? { month: monthNames[11], year: selectedYear - 1 }
+      : { month: monthNames[idx - 1], year: selectedYear };
+  })();
+  const { data: prevMonthData } = useQuery({
+    queryKey: ['prevMonthMetrics', selectedSite, prevPeriod.month, prevPeriod.year, selectedCompanyId],
+    queryFn: () => fetchMetricsForPeriod(prevPeriod.month, prevPeriod.year),
+    enabled: periodType === 'monthly' && canAggregate,
+  });
+
   const handleCategoryToggle = (category: string) => {
     setEnabledCategories((prev) => ({
       ...prev,
@@ -290,26 +304,9 @@ export default function Dashboard() {
     }));
   };
 
-  // Process metrics data from API
-  const processMetricsData = () => {
-    // If no data, return empty arrays
-    if (!metricsData || metricsData.length === 0) {
-      return {
-        operational: [],
-        training: [],
-        compliance: [],
-        documentation: [],
-        emergency: [],
-        incidents: [],
-        ppe: [],
-        environment: [],
-        health: [],
-      };
-    }
-
-    // Map API data to display format
-    const metric = metricsData[0]; // Get first metric (should be aggregated)
-
+  // Maps one metric record into the 9 categorized card arrays. Extracted so
+  // it can also run on the previous month's record for trend comparison.
+  const buildDisplayData = (metric: any) => {
     return {
       operational: [
         {
@@ -631,7 +628,39 @@ export default function Dashboard() {
     };
   };
 
-  const displayData = processMetricsData();
+  const processMetricsData = () => {
+    if (!metricsData || metricsData.length === 0) {
+      return {
+        operational: [], training: [], compliance: [], documentation: [],
+        emergency: [], incidents: [], ppe: [], environment: [], health: [],
+      };
+    }
+    return buildDisplayData(metricsData[0]);
+  };
+
+  const rawDisplayData = processMetricsData();
+
+  // Attach month-over-month trend to each card param, Monthly view only.
+  // Combined periods have no clean "previous", so they get no trend and the
+  // cards render without the arrow.
+  const displayData = (() => {
+    if (periodType !== 'monthly' || !prevMonthData || prevMonthData.length === 0) return rawDisplayData;
+    const prev = buildDisplayData(prevMonthData[0]);
+    const prevMap = new Map<string, { score: number; notReported: boolean }>();
+    Object.values(prev).flat().forEach((p: any) => {
+      prevMap.set(p.title, { score: p.score, notReported: !p.isIncident && p.target === 0 && p.actual === 0 });
+    });
+    return Object.fromEntries(
+      Object.entries(rawDisplayData).map(([cat, params]) => [
+        cat,
+        (params as any[]).map((p) => {
+          const isNR = !p.isIncident && p.target === 0 && p.actual === 0;
+          const pv = prevMap.get(p.title);
+          return isNR || !pv || pv.notReported ? p : { ...p, trend: { delta: p.score - pv.score } };
+        }),
+      ])
+    ) as typeof rawDisplayData;
+  })();
 
   // Calculate parameter statistics (Target Met / Close / Below)
   const calculateParameterStats = () => {
