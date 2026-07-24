@@ -55,8 +55,16 @@ export async function exportDashboardVisualPdf(element: HTMLElement, fileName: s
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
 
-  const pxToPt = pageWidth / canvas.width; // canvas px -> PDF points (full-width fit)
-  const pageContentPx = pageHeight / pxToPt; // canvas px that fill one page's height
+  // Document margins so the content never runs flush to the paper edge
+  // (which reads as "cut off"). Content is inset into this box.
+  const marginX = 26;
+  const marginTop = 28;
+  const marginBottom = 32; // a little extra room for the page-number footer
+  const contentWidth = pageWidth - marginX * 2;
+  const usableHeight = pageHeight - marginTop - marginBottom;
+
+  const pxToPt = contentWidth / canvas.width; // canvas px -> PDF points (inset width)
+  const pageContentPx = usableHeight / pxToPt; // canvas px that fill one page's usable height
 
   // Safe cut points: the bottom of each merged group (cut right after a
   // complete row of cards), plus the very bottom of the canvas.
@@ -78,8 +86,8 @@ export async function exportDashboardVisualPdf(element: HTMLElement, fileName: s
 
     const sliceH = Math.round(cut - pageStart);
 
-    // Copy this vertical slice onto its own canvas, then place it at the top
-    // of a fresh page.
+    // Copy this vertical slice onto its own canvas, then place it inside the
+    // page margins.
     const slice = document.createElement('canvas');
     slice.width = canvas.width;
     slice.height = sliceH;
@@ -89,10 +97,19 @@ export async function exportDashboardVisualPdf(element: HTMLElement, fileName: s
     ctx.drawImage(canvas, 0, pageStart, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
 
     if (!firstPage) pdf.addPage();
-    pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageWidth, sliceH * pxToPt);
+    pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', marginX, marginTop, contentWidth, sliceH * pxToPt);
     firstPage = false;
 
     pageStart = cut;
+  }
+
+  // "Page X of Y" footer, centered, on every page.
+  const pageCount = pdf.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(8);
+    pdf.setTextColor(150);
+    pdf.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 14, { align: 'center' });
   }
 
   pdf.save(fileName);
