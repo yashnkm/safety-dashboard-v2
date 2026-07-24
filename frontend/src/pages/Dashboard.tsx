@@ -46,7 +46,7 @@ import {
   Info,
   FileDown,
 } from 'lucide-react';
-import { exportDashboardToPdf } from '@/lib/pdfExport';
+import { exportDashboardVisualPdf } from '@/lib/pdfExport';
 import { resolvePeriods, periodLabel, type PeriodSelection, type PeriodType, type Quarter, type Half } from '@/lib/periodUtils';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
@@ -118,6 +118,11 @@ export default function Dashboard() {
   // a just-completed Excel import or from the "latest period with data" lookup
   // below — prevents the two from fighting each other on mount.
   const filtersInitializedRef = useRef(false);
+
+  // The dashboard content node the visual PDF export rasterizes, and a flag
+  // to show progress while html2canvas works (it takes a beat on a long page).
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Check for lastImport from localStorage (after Excel import)
   useEffect(() => {
@@ -861,18 +866,18 @@ export default function Dashboard() {
     return { reported, total, adjustedPercentage };
   })();
 
-  const handleExportPdf = () => {
-    if (!dataSourceInfo) return;
-    exportDashboardToPdf({
-      siteLabel: dataSourceInfo.label,
-      month: periodLabel(periodSelection),
-      year: selectedYear,
-      totalScore: cumulativeScore.totalScore,
-      maxScore: cumulativeScore.maxScore,
-      rating: cumulativeScore.rating,
-      displayData,
-      isAmbiguousSource: dataSourceInfo.isAmbiguous,
-    });
+  const handleExportPdf = async () => {
+    if (!dashboardRef.current || isExporting) return;
+    const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '-');
+    const fileName = `Safety-Dashboard_${sanitize(dataSourceInfo?.label || 'report')}_${sanitize(periodLabel(periodSelection))}.pdf`;
+    setIsExporting(true);
+    try {
+      await exportDashboardVisualPdf(dashboardRef.current, fileName);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -897,18 +902,19 @@ export default function Dashboard() {
         />
       }
     >
-      <div className="space-y-8">
+      <div className="space-y-8" ref={dashboardRef}>
         {/* Header with Import/Export Buttons */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Safety Dashboard</h1>
             <p className="text-gray-600 mt-1">Track and monitor safety metrics across all sites</p>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Action buttons are excluded from the visual PDF capture. */}
+          <div className="flex items-center gap-2" data-html2canvas-ignore>
             {!metricsLoading && metricsData && metricsData.length > 0 && (
-              <Button variant="outline" onClick={handleExportPdf} className="gap-2">
+              <Button variant="outline" onClick={handleExportPdf} disabled={isExporting} className="gap-2">
                 <FileDown className="w-4 h-4" />
-                Export PDF
+                {isExporting ? 'Exporting…' : 'Export PDF'}
               </Button>
             )}
             {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
