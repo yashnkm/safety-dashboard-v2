@@ -19,7 +19,10 @@ export async function exportDashboardVisualPdf(element: HTMLElement, fileName: s
     backgroundColor: '#ffffff',
     useCORS: true, // allow the company logo (served cross-origin) to render
     logging: false,
-    windowWidth: element.scrollWidth,
+    // No windowWidth override: it makes recharts' ResponsiveContainer
+    // re-measure to a wider parent during capture, so the trend/bar charts
+    // render wider than their cards and get clipped at the page's right
+    // edge. Capturing at the element's natural width matches the screen.
   });
 
   // JPEG keeps a long, many-card capture to a sane file size vs. PNG.
