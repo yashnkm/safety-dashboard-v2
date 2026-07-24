@@ -275,7 +275,9 @@ export default function AppSidebar({
                 <SelectValue placeholder="Select site" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
-                <SelectItem value="all">All Sites</SelectItem>
+                {/* "All Sites" is a company-wide roll-up across multiple
+                    sites - redundant (and hidden) when there's only one. */}
+                {sites.length > 1 && <SelectItem value="all">All Sites</SelectItem>}
                 {sites.map((site) => (
                   <SelectItem key={site.id} value={site.id}>
                     {site.company ? `${site.siteName} (${site.company.companyName})` : site.siteName}

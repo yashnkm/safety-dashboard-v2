@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout.tsx';
@@ -144,10 +144,31 @@ export default function Dashboard() {
   // For SUPER_ADMIN with a company picked, scope the sidebar's site list to
   // just that company. Otherwise (regular users, or SUPER_ADMIN before
   // picking a company) show everything the sites query already returned.
-  const sites =
-    user?.role === 'SUPER_ADMIN' && selectedCompanyId
-      ? allSites.filter((s: any) => s.companyId === selectedCompanyId)
-      : allSites;
+  // Memoized so its reference is stable across renders - the effect below
+  // depends on it and shouldn't re-run on every render.
+  const sites = useMemo(
+    () =>
+      user?.role === 'SUPER_ADMIN' && selectedCompanyId
+        ? allSites.filter((s: any) => s.companyId === selectedCompanyId)
+        : allSites,
+    [allSites, user?.role, selectedCompanyId]
+  );
+
+  // Keep the site selection valid as the available sites change (e.g. a
+  // SUPER_ADMIN switching companies). A single-site company hides the
+  // "All Sites" option (it's just that one site), so auto-select it; and
+  // if the selected site no longer belongs to the current company, fall
+  // back to "All Sites".
+  useEffect(() => {
+    if (sites.length === 0) return; // still loading, or nothing to show
+    if (sites.length === 1) {
+      if (selectedSite !== sites[0].id) setSelectedSite(sites[0].id);
+      return;
+    }
+    if (selectedSite !== 'all' && !sites.some((s: any) => s.id === selectedSite)) {
+      setSelectedSite('all');
+    }
+  }, [sites, selectedSite]);
 
   // Fetch every accessible metric (unfiltered) once, purely to find the most
   // recent month/year that actually has data — so the dashboard doesn't default
