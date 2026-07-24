@@ -6,48 +6,93 @@ import html2canvas from 'html2canvas-pro';
 
 /**
  * Screenshot-style PDF export: rasterizes a DOM node exactly as it looks on
- * screen (gauge, cards, charts) and lays it across as many A4 pages as
- * needed. Elements marked `data-html2canvas-ignore` (e.g. action buttons)
- * are skipped natively by html2canvas.
+ * screen (gauge, cards, charts). Pages are cut only in the gaps *between*
+ * cards, never through one — so a card never straddles a page break, and
+ * section headers (which sit in those gaps) flow onto the same page as the
+ * cards that follow them.
  *
- * Trade-off vs. the old table export: pixel-perfect to the dashboard, but
- * text isn't selectable and a card can straddle a page break.
+ * Elements marked `data-html2canvas-ignore` (e.g. action buttons) are
+ * skipped natively by html2canvas.
+ *
+ * Trade-off vs. a rebuilt-in-jsPDF report: pixel-perfect to the dashboard,
+ * but the text isn't selectable.
  */
 export async function exportDashboardVisualPdf(element: HTMLElement, fileName: string): Promise<void> {
+  const scale = 2; // crisper text/lines than 1x
+
+  // Measure the "atomic" blocks (cards, notices, charts) BEFORE capture, in
+  // canvas pixels relative to the element's top. Every Card carries the
+  // `rounded-lg` class, which is what we key on.
+  const elemTop = element.getBoundingClientRect().top;
+  const blockEls = element.querySelectorAll<HTMLElement>('[class*="rounded-lg"]');
+  const intervals: Array<[number, number]> = [];
+  blockEls.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.height === 0) return;
+    intervals.push([(r.top - elemTop) * scale, (r.bottom - elemTop) * scale]);
+  });
+  // Merge overlapping/adjacent block intervals (e.g. a row of 3 cards) so the
+  // safe cut points are the *bottoms* of whole rows/groups.
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const iv of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && iv[0] <= last[1] + 1) {
+      last[1] = Math.max(last[1], iv[1]);
+    } else {
+      merged.push([iv[0], iv[1]]);
+    }
+  }
+
   const canvas = await html2canvas(element, {
-    scale: 2, // crisper text/lines than 1x
+    scale,
     backgroundColor: '#ffffff',
     useCORS: true, // allow the company logo (served cross-origin) to render
     logging: false,
-    // No windowWidth override: it makes recharts' ResponsiveContainer
-    // re-measure to a wider parent during capture, so the trend/bar charts
-    // render wider than their cards and get clipped at the page's right
-    // edge. Capturing at the element's natural width matches the screen.
   });
-
-  // JPEG keeps a long, many-card capture to a sane file size vs. PNG.
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
 
-  // Fit the capture to full page width; height scales proportionally.
-  const imgWidth = pageWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const pxToPt = pageWidth / canvas.width; // canvas px -> PDF points (full-width fit)
+  const pageContentPx = pageHeight / pxToPt; // canvas px that fill one page's height
 
-  // Place the single tall image and shift it up one page-height at a time,
-  // adding pages until the whole thing has been laid down.
-  let heightLeft = imgHeight;
-  let position = 0;
-  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight;
+  // Safe cut points: the bottom of each merged group (cut right after a
+  // complete row of cards), plus the very bottom of the canvas.
+  const safeCuts = merged.map((m) => m[1]);
+  safeCuts.push(canvas.height);
 
-  while (heightLeft > 0) {
-    position -= pageHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+  let pageStart = 0;
+  let firstPage = true;
+  while (pageStart < canvas.height - 1) {
+    const target = pageStart + pageContentPx;
+
+    // Largest safe cut that fits in this page; if a single block is taller
+    // than a page (shouldn't happen here), hard-cut to make progress.
+    let cut = -1;
+    for (const c of safeCuts) {
+      if (c > pageStart && c <= target && c > cut) cut = c;
+    }
+    if (cut < 0) cut = Math.min(target, canvas.height);
+
+    const sliceH = Math.round(cut - pageStart);
+
+    // Copy this vertical slice onto its own canvas, then place it at the top
+    // of a fresh page.
+    const slice = document.createElement('canvas');
+    slice.width = canvas.width;
+    slice.height = sliceH;
+    const ctx = slice.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, slice.width, slice.height);
+    ctx.drawImage(canvas, 0, pageStart, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+    if (!firstPage) pdf.addPage();
+    pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageWidth, sliceH * pxToPt);
+    firstPage = false;
+
+    pageStart = cut;
   }
 
   pdf.save(fileName);
