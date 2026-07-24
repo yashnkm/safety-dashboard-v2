@@ -66,6 +66,11 @@ export default function Dashboard() {
   const [selectedQuarter, setSelectedQuarter] = useState<Quarter>('Q1');
   const [selectedHalf, setSelectedHalf] = useState<Half>('H1');
   const [selectedCustomMonths, setSelectedCustomMonths] = useState<string[]>([]);
+  // Date range defaults to the current full year until the user narrows it.
+  const [rangeStartMonth, setRangeStartMonth] = useState('January');
+  const [rangeStartYear, setRangeStartYear] = useState(currentDate.getFullYear());
+  const [rangeEndMonth, setRangeEndMonth] = useState('December');
+  const [rangeEndYear, setRangeEndYear] = useState(currentDate.getFullYear());
 
   const periodSelection: PeriodSelection = {
     type: periodType,
@@ -74,6 +79,10 @@ export default function Dashboard() {
     quarter: selectedQuarter,
     half: selectedHalf,
     months: selectedCustomMonths,
+    startMonth: rangeStartMonth,
+    startYear: rangeStartYear,
+    endMonth: rangeEndMonth,
+    endYear: rangeEndYear,
   };
 
   const handlePeriodSelectionChange = (next: PeriodSelection) => {
@@ -81,6 +90,10 @@ export default function Dashboard() {
     if (next.quarter) setSelectedQuarter(next.quarter);
     if (next.half) setSelectedHalf(next.half);
     if (next.months) setSelectedCustomMonths(next.months);
+    if (next.startMonth) setRangeStartMonth(next.startMonth);
+    if (next.startYear) setRangeStartYear(next.startYear);
+    if (next.endMonth) setRangeEndMonth(next.endMonth);
+    if (next.endYear) setRangeEndYear(next.endYear);
   };
   // SUPER_ADMIN sees sites across every client company, so "All Sites"
   // aggregation requires picking a specific company first - blending two
@@ -224,9 +237,13 @@ export default function Dashboard() {
   });
 
   // Combined metrics across the resolved period (Quarterly/Half-Yearly/
-  // Annual/Custom) - resolves to a concrete list of (month, year) pairs via
-  // periodUtils, then asks the backend to sum/average and score them as one.
+  // Annual/Custom/Date Range) - resolves to a concrete list of (month, year)
+  // pairs via periodUtils, then asks the backend to sum/average and score
+  // them as one. Date Range is the only type whose list can span years.
   const resolvedPeriods = resolvePeriods(periodSelection);
+  // A Date Range whose start is after its end (or incomplete) expands to
+  // nothing - surface that as a hint rather than a confusing "no data".
+  const invalidDateRange = periodType === 'daterange' && resolvedPeriods.length === 0;
   const { data: combinedMetricsData, isLoading: combinedMetricsLoading } = useQuery({
     queryKey: ['combinedMetrics', selectedSite, selectedCompanyId, periodType, resolvedPeriods],
     queryFn: () =>
@@ -246,11 +263,16 @@ export default function Dashboard() {
   const metricsData = periodType === 'monthly' ? monthlyMetricsData : combinedMetricsData;
   const metricsLoading = periodType === 'monthly' ? monthlyMetricsLoading : combinedMetricsLoading;
 
-  // Fetch yearly trend data (all months for the selected year)
+  // The month-by-month trend chart always shows a single year for context.
+  // In Date Range mode there's no single "selected year", so show the end
+  // year of the range (the most recent year in the span).
+  const trendYear = periodType === 'daterange' ? rangeEndYear : selectedYear;
+
+  // Fetch yearly trend data (all months for the trend year)
   const { data: yearlyTrendData, isLoading: trendLoading } = useQuery({
-    queryKey: ['yearlyTrend', selectedSite, selectedYear, selectedCompanyId],
+    queryKey: ['yearlyTrend', selectedSite, trendYear, selectedCompanyId],
     queryFn: async () => {
-      const promises = monthNames.map((month) => fetchMetricsForPeriod(month, selectedYear));
+      const promises = monthNames.map((month) => fetchMetricsForPeriod(month, trendYear));
       const results = await Promise.all(promises);
       return results.map((data, index) => ({
         month: monthNames[index].substring(0, 3), // Jan, Feb, etc.
@@ -258,7 +280,7 @@ export default function Dashboard() {
         target: 100,
       }));
     },
-    enabled: !!selectedYear && canAggregate,
+    enabled: !!trendYear && canAggregate,
   });
 
   const handleCategoryToggle = (category: string) => {
@@ -907,6 +929,14 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Invalid Date Range hint */}
+        {invalidDateRange && (
+          <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-amber-50 border-amber-200 text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>The <strong>From</strong> date is after the <strong>To</strong> date — pick a start on or before the end.</span>
+          </div>
+        )}
+
         {/* Combined Period Notice - which months/sites actually had data */}
         {!metricsLoading && periodType !== 'monthly' && metricsData && metricsData.length > 0 && (
           <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-600">
@@ -964,7 +994,7 @@ export default function Dashboard() {
         )}
 
         {/* No Data Message */}
-        {!metricsLoading && (!metricsData || metricsData.length === 0) && (
+        {!metricsLoading && !invalidDateRange && (!metricsData || metricsData.length === 0) && (
           <div className="text-center py-12">
             <p className="text-lg font-semibold text-muted-foreground mb-2">No Data Available</p>
             <p className="text-sm text-muted-foreground">
@@ -1007,7 +1037,7 @@ export default function Dashboard() {
                   <MonthlyTrendChart
                     data={yearlyTrendData || []}
                     currentMonth={selectedMonth}
-                    year={selectedYear}
+                    year={trendYear}
                   />
                 )}
               </div>

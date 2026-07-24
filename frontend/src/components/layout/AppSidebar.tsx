@@ -77,6 +77,9 @@ const months = [
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+// Wider span for date-range start/end, so a multi-year project can reach
+// back to its actual start year (older than the single-year pickers offer).
+const rangeYears = Array.from({ length: 10 }, (_, i) => currentYear - i);
 
 const categories = [
   { id: 'operational', label: 'Operational', count: 2 },
@@ -306,6 +309,7 @@ export default function AppSidebar({
                 <SelectItem value="halfyearly">Half-Yearly</SelectItem>
                 <SelectItem value="annual">Annual</SelectItem>
                 <SelectItem value="custom">Custom</SelectItem>
+                <SelectItem value="daterange">Date Range</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -413,6 +417,93 @@ export default function AppSidebar({
             </div>
           )}
 
+          {periodSelection.type === 'daterange' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  From
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={periodSelection.startMonth ?? 'January'}
+                    onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, startMonth: v })}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                      {months.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={(periodSelection.startYear ?? currentYear).toString()}
+                    onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, startYear: parseInt(v) })}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                      {rangeYears.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  To
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={periodSelection.endMonth ?? 'December'}
+                    onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, endMonth: v })}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                      {months.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={(periodSelection.endYear ?? currentYear).toString()}
+                    onValueChange={(v) => onPeriodSelectionChange({ ...periodSelection, endYear: parseInt(v) })}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg z-[100]">
+                      {rangeYears.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {periodSelection.type !== 'daterange' && (
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
               <Calendar className="h-3 w-3" />
@@ -435,6 +526,7 @@ export default function AppSidebar({
               </SelectContent>
             </Select>
           </div>
+          )}
         </div>
 
         <Separator />
