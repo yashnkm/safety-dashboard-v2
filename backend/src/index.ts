@@ -42,13 +42,18 @@ app.use(
   express.static(path.join(__dirname, '../uploads'))
 );
 
-// Rate limiting - very lenient for development and testing
+// Rate limiting per client IP. The dashboard is chatty on load (the yearly
+// trend alone fires ~12 requests), so this stays generous enough for a
+// power user switching filters, while still cutting off abuse. Overridable
+// via RATE_LIMIT_MAX. The health check is exempt so uptime monitors always
+// get through and never eat into the budget.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // 10000 requests per 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX || '1000'),
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path === '/health',
 });
 app.use('/api', limiter);
 
