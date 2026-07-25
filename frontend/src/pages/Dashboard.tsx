@@ -46,7 +46,20 @@ import {
   Info,
   FileDown,
 } from 'lucide-react';
-import { exportDashboardVisualPdf } from '@/lib/pdfExport';
+import { exportSafetyReport } from '@/lib/reportPdf';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  operational: 'Operational Metrics',
+  training: 'Training & Induction',
+  compliance: 'Inspection & Compliance',
+  documentation: 'Documentation',
+  emergency: 'Emergency & Audit',
+  incidents: 'Incident Reports',
+  ppe: 'PPE Compliance',
+  environment: 'Environment Metrics',
+  health: 'Health & Hygiene',
+};
+const CATEGORY_ORDER = ['operational', 'training', 'compliance', 'documentation', 'emergency', 'incidents', 'ppe', 'environment', 'health'];
 import { resolvePeriods, periodLabel, type PeriodSelection, type PeriodType, type Quarter, type Half } from '@/lib/periodUtils';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
@@ -151,6 +164,7 @@ export default function Dashboard() {
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [reportMenuOpen, setReportMenuOpen] = useState(false);
 
   // Check for lastImport from localStorage (after Excel import)
   useEffect(() => {
@@ -894,40 +908,62 @@ export default function Dashboard() {
     return { reported, total, adjustedPercentage };
   })();
 
-  const handleExportPdf = async () => {
-    if (!dashboardRef.current || isExporting) return;
+  const handleExportReport = async (mode: 'summary' | 'full') => {
+    if (isExporting) return;
+    setReportMenuOpen(false);
+
     // Collapse anything non-alphanumeric to single dashes and drop
     // consecutive duplicate tokens, so "DEMO (DEMO)" -> "DEMO".
     const cleanToken = (s: string) => {
       const parts = s.replace(/[^a-z0-9]+/gi, ' ').trim().split(/\s+/);
       return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase()).join('-');
     };
-    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}.pdf`;
+    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}${mode === 'full' ? '_Full' : ''}.pdf`;
 
-    // The logo of whichever company the report is about (single site -> its
-    // company; all-sites -> the selected/own company). Null for companies
-    // without a logo, or logos we can't read cross-origin.
+    // Company name + logo for whichever company the report is about.
+    const companyId = user?.role === 'SUPER_ADMIN' ? selectedCompanyId : (user as any)?.companyId;
+    const companyName =
+      (selectedSite !== 'all'
+        ? sites.find((s: any) => s.id === selectedSite)?.company?.companyName
+        : companies.find((c: any) => c.id === companyId)?.companyName) ||
+      (user as any)?.company?.companyName ||
+      'Company';
     const logoUrl = (() => {
       if (selectedSite !== 'all') {
         return sites.find((s: any) => s.id === selectedSite)?.company?.logoUrl || null;
       }
-      const companyId = user?.role === 'SUPER_ADMIN' ? selectedCompanyId : (user as any)?.companyId;
       const withLogo = allSites.find((s: any) => s.companyId === companyId && s.company?.logoUrl);
       return withLogo?.company?.logoUrl || (user as any)?.company?.logoUrl || null;
     })();
 
+    const categories = CATEGORY_ORDER.map((key) => ({
+      key,
+      label: CATEGORY_LABELS[key],
+      params: ((displayData as any)[key] || []) as any[],
+    })).filter((c) => c.params.length > 0);
+
     setIsExporting(true);
     try {
       const logo = logoUrl ? await loadLogoForPdf(logoUrl) : null;
-      await exportDashboardVisualPdf(dashboardRef.current, fileName, {
-        siteLabel: dataSourceInfo?.label || 'Safety Report',
-        period: periodLabel(periodSelection),
-        generatedAt: new Date().toLocaleString(),
-        logo,
-      });
+      exportSafetyReport(
+        {
+          companyName,
+          siteLabel: dataSourceInfo?.label || 'Safety Report',
+          period: periodLabel(periodSelection),
+          generatedAt: new Date().toLocaleString(),
+          logo,
+          totalScore: cumulativeScore.totalScore,
+          maxScore: cumulativeScore.maxScore,
+          rating: cumulativeScore.rating,
+          completeness: dataCompleteness,
+          categories,
+        },
+        mode,
+        fileName
+      );
       setExportStatus('success');
     } catch (err) {
-      console.error('PDF export failed:', err);
+      console.error('Report export failed:', err);
       setExportStatus('error');
     } finally {
       setIsExporting(false);
@@ -983,13 +1019,40 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold text-gray-900">Safety Dashboard</h1>
             <p className="text-gray-600 mt-1">Track and monitor safety metrics across all sites</p>
           </div>
-          {/* Action buttons are excluded from the visual PDF capture. */}
-          <div className="flex items-center gap-2" data-html2canvas-ignore>
+          <div className="flex items-center gap-2">
             {!metricsLoading && metricsData && metricsData.length > 0 && (
-              <Button variant="outline" onClick={handleExportPdf} disabled={isExporting} className="gap-2">
-                <FileDown className="w-4 h-4" />
-                {isExporting ? 'Exporting…' : 'Export PDF'}
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  onClick={() => setReportMenuOpen((o) => !o)}
+                  disabled={isExporting}
+                  className="gap-2"
+                >
+                  <FileDown className="w-4 h-4" />
+                  {isExporting ? 'Generating…' : 'Export Report'}
+                </Button>
+                {reportMenuOpen && !isExporting && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setReportMenuOpen(false)} />
+                    <div className="absolute right-0 mt-1 w-56 rounded-md border border-gray-200 bg-white shadow-lg z-50 py-1">
+                      <button
+                        onClick={() => handleExportReport('summary')}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <span className="font-medium">Summary report</span>
+                        <span className="block text-xs text-muted-foreground">Cover + executive summary</span>
+                      </button>
+                      <button
+                        onClick={() => handleExportReport('full')}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <span className="font-medium">Full report</span>
+                        <span className="block text-xs text-muted-foreground">Adds every parameter in detail</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
             {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
               <Button onClick={() => navigate('/import')} className="gap-2">
