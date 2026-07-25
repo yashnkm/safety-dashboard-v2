@@ -119,10 +119,12 @@ export default function Dashboard() {
   // below — prevents the two from fighting each other on mount.
   const filtersInitializedRef = useRef(false);
 
-  // The dashboard content node the visual PDF export rasterizes, and a flag
-  // to show progress while html2canvas works (it takes a beat on a long page).
+  // The dashboard content node the visual PDF export rasterizes, a flag to
+  // show progress while html2canvas works, and a transient status for the
+  // success/error toast.
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // Check for lastImport from localStorage (after Excel import)
   useEffect(() => {
@@ -868,15 +870,27 @@ export default function Dashboard() {
 
   const handleExportPdf = async () => {
     if (!dashboardRef.current || isExporting) return;
-    const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '-');
-    const fileName = `Safety-Dashboard_${sanitize(dataSourceInfo?.label || 'report')}_${sanitize(periodLabel(periodSelection))}.pdf`;
+    // Collapse anything non-alphanumeric to single dashes and drop
+    // consecutive duplicate tokens, so "DEMO (DEMO)" -> "DEMO".
+    const cleanToken = (s: string) => {
+      const parts = s.replace(/[^a-z0-9]+/gi, ' ').trim().split(/\s+/);
+      return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase()).join('-');
+    };
+    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}.pdf`;
     setIsExporting(true);
     try {
-      await exportDashboardVisualPdf(dashboardRef.current, fileName);
+      await exportDashboardVisualPdf(dashboardRef.current, fileName, {
+        siteLabel: dataSourceInfo?.label || 'Safety Report',
+        period: periodLabel(periodSelection),
+        generatedAt: new Date().toLocaleString(),
+      });
+      setExportStatus('success');
     } catch (err) {
       console.error('PDF export failed:', err);
+      setExportStatus('error');
     } finally {
       setIsExporting(false);
+      setTimeout(() => setExportStatus('idle'), 4000);
     }
   };
 
@@ -902,6 +916,25 @@ export default function Dashboard() {
         />
       }
     >
+      {/* Export status toast (rendered outside the captured content) */}
+      {exportStatus !== 'idle' && (
+        <div
+          data-html2canvas-ignore
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg ${
+            exportStatus === 'success'
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          {exportStatus === 'success' ? (
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          )}
+          <span>{exportStatus === 'success' ? 'PDF downloaded.' : 'Export failed — please try again.'}</span>
+        </div>
+      )}
+
       <div className="space-y-8" ref={dashboardRef}>
         {/* Header with Import/Export Buttons */}
         <div className="flex items-center justify-between">
