@@ -37,6 +37,9 @@ app.use(
   '/uploads',
   (_req, res, next) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    // Allow the frontend to read these public images cross-origin (e.g. to
+    // embed a company logo into the exported PDF via a tainted-free canvas).
+    res.setHeader('Access-Control-Allow-Origin', '*');
     next();
   },
   express.static(path.join(__dirname, '../uploads'))

@@ -51,6 +51,32 @@ import { resolvePeriods, periodLabel, type PeriodSelection, type PeriodType, typ
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
 
+/**
+ * Loads a company logo into a data URL + dimensions for embedding in the PDF
+ * header. Resolves to null (so the export falls back to a text-only header)
+ * if the logo is missing or can't be read cross-origin (e.g. an externally
+ * hosted image with no CORS headers taints the canvas).
+ */
+function loadLogoForPdf(url: string): Promise<{ dataUrl: string; width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+        resolve({ dataUrl: canvas.toDataURL('image/png'), width: img.naturalWidth, height: img.naturalHeight });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -877,12 +903,27 @@ export default function Dashboard() {
       return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase()).join('-');
     };
     const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}.pdf`;
+
+    // The logo of whichever company the report is about (single site -> its
+    // company; all-sites -> the selected/own company). Null for companies
+    // without a logo, or logos we can't read cross-origin.
+    const logoUrl = (() => {
+      if (selectedSite !== 'all') {
+        return sites.find((s: any) => s.id === selectedSite)?.company?.logoUrl || null;
+      }
+      const companyId = user?.role === 'SUPER_ADMIN' ? selectedCompanyId : (user as any)?.companyId;
+      const withLogo = allSites.find((s: any) => s.companyId === companyId && s.company?.logoUrl);
+      return withLogo?.company?.logoUrl || (user as any)?.company?.logoUrl || null;
+    })();
+
     setIsExporting(true);
     try {
+      const logo = logoUrl ? await loadLogoForPdf(logoUrl) : null;
       await exportDashboardVisualPdf(dashboardRef.current, fileName, {
         siteLabel: dataSourceInfo?.label || 'Safety Report',
         period: periodLabel(periodSelection),
         generatedAt: new Date().toLocaleString(),
+        logo,
       });
       setExportStatus('success');
     } catch (err) {

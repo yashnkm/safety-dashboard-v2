@@ -8,6 +8,9 @@ interface ReportHeader {
   siteLabel: string; // e.g. "DEMO (DEMO)"
   period: string; // e.g. "December 2025"
   generatedAt: string; // e.g. "24 Jul 2026, 4:30 PM"
+  // Optional company logo, pre-loaded to a data URL (null if the company has
+  // none or its logo couldn't be read cross-origin).
+  logo?: { dataUrl: string; width: number; height: number } | null;
 }
 
 // Capture at a fixed width so every exported report looks the same
@@ -91,8 +94,13 @@ export async function exportDashboardVisualPdf(
     const pxToPt = contentWidth / canvas.width;
     const pageContentPx = usableHeight / pxToPt;
 
-    // Safe cut points: the bottom of each merged group, plus the very bottom.
-    const safeCuts = merged.map((m) => m[1]);
+    // Safe cut points: the MIDDLE of each gap between groups (not a card's
+    // exact bottom edge), so no hairline sliver of a card bleeds onto the
+    // next page's top. Plus the very bottom of the canvas for the last page.
+    const safeCuts: number[] = [];
+    for (let i = 0; i < merged.length - 1; i++) {
+      safeCuts.push((merged[i][1] + merged[i + 1][0]) / 2);
+    }
     safeCuts.push(canvas.height);
 
     let pageStart = 0;
@@ -116,19 +124,31 @@ export async function exportDashboardVisualPdf(
       ctx.drawImage(canvas, 0, pageStart, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
 
       if (!firstPage) pdf.addPage();
-      pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', marginX, marginTop, contentWidth, sliceH * pxToPt);
+      // 0.82 quality keeps the file email-friendly with no visible loss on
+      // flat-colour dashboard content.
+      pdf.addImage(slice.toDataURL('image/jpeg', 0.82), 'JPEG', marginX, marginTop, contentWidth, sliceH * pxToPt);
       firstPage = false;
 
       pageStart = cut;
     }
 
-    // Running header + footer on every page.
+    // Running header (optional logo + report/site/period + generated time)
+    // and footer on every page.
     const pageCount = pdf.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
+
+      let textX = marginX;
+      if (header.logo) {
+        const logoH = 16;
+        const logoW = logoH * (header.logo.width / header.logo.height);
+        pdf.addImage(header.logo.dataUrl, 'PNG', marginX, 9, logoW, logoH);
+        textX = marginX + logoW + 8;
+      }
+
       pdf.setFontSize(8);
       pdf.setTextColor(120);
-      pdf.text(`Protecther Safety Report  ·  ${header.siteLabel}  ·  ${header.period}`, marginX, 22);
+      pdf.text(`Protecther Safety Report  ·  ${header.siteLabel}  ·  ${header.period}`, textX, 22);
       pdf.text(`Generated ${header.generatedAt}`, pageWidth - marginX, 22, { align: 'right' });
       pdf.setDrawColor(225);
       pdf.line(marginX, 28, pageWidth - marginX, 28);
