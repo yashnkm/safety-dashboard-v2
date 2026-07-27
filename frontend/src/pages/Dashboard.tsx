@@ -47,6 +47,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { exportSafetyReport } from '@/lib/reportPdf';
+import { exportDashboardVisualPdf } from '@/lib/pdfExport';
 
 const CATEGORY_LABELS: Record<string, string> = {
   operational: 'Operational Metrics',
@@ -908,7 +909,7 @@ export default function Dashboard() {
     return { reported, total, adjustedPercentage };
   })();
 
-  const handleExportReport = async (mode: 'summary' | 'full') => {
+  const handleExportReport = async (mode: 'summary' | 'full' | 'visual') => {
     if (isExporting) return;
     setReportMenuOpen(false);
 
@@ -918,7 +919,8 @@ export default function Dashboard() {
       const parts = s.replace(/[^a-z0-9]+/gi, ' ').trim().split(/\s+/);
       return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase()).join('-');
     };
-    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}${mode === 'full' ? '_Full' : ''}.pdf`;
+    const suffix = mode === 'full' ? '_Full' : mode === 'visual' ? '_Snapshot' : '';
+    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}${suffix}.pdf`;
 
     // Company name + logo for whichever company the report is about.
     const companyId = user?.role === 'SUPER_ADMIN' ? selectedCompanyId : (user as any)?.companyId;
@@ -945,22 +947,34 @@ export default function Dashboard() {
     setIsExporting(true);
     try {
       const logo = logoUrl ? await loadLogoForPdf(logoUrl) : null;
-      exportSafetyReport(
-        {
-          companyName,
-          siteLabel: dataSourceInfo?.label || 'Safety Report',
-          period: periodLabel(periodSelection),
-          generatedAt: new Date().toLocaleString(),
-          logo,
-          totalScore: cumulativeScore.totalScore,
-          maxScore: cumulativeScore.maxScore,
-          rating: cumulativeScore.rating,
-          completeness: dataCompleteness,
-          categories,
-        },
-        mode,
-        fileName
-      );
+      if (mode === 'visual') {
+        // Old behaviour: a pixel-for-pixel screenshot of the dashboard.
+        if (dashboardRef.current) {
+          await exportDashboardVisualPdf(dashboardRef.current, fileName, {
+            siteLabel: dataSourceInfo?.label || 'Safety Report',
+            period: periodLabel(periodSelection),
+            generatedAt: new Date().toLocaleString(),
+            logo,
+          });
+        }
+      } else {
+        exportSafetyReport(
+          {
+            companyName,
+            siteLabel: dataSourceInfo?.label || 'Safety Report',
+            period: periodLabel(periodSelection),
+            generatedAt: new Date().toLocaleString(),
+            logo,
+            totalScore: cumulativeScore.totalScore,
+            maxScore: cumulativeScore.maxScore,
+            rating: cumulativeScore.rating,
+            completeness: dataCompleteness,
+            categories,
+          },
+          mode,
+          fileName
+        );
+      }
       setExportStatus('success');
     } catch (err) {
       console.error('Report export failed:', err);
@@ -1048,6 +1062,14 @@ export default function Dashboard() {
                       >
                         <span className="font-medium">Full report</span>
                         <span className="block text-xs text-muted-foreground">Adds every parameter in detail</span>
+                      </button>
+                      <div className="my-1 border-t border-gray-100" />
+                      <button
+                        onClick={() => handleExportReport('visual')}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <span className="font-medium">Visual snapshot</span>
+                        <span className="block text-xs text-muted-foreground">Image of the dashboard as shown</span>
                       </button>
                     </div>
                   </>
