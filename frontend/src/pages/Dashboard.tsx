@@ -49,6 +49,7 @@ import {
 import { exportSafetyReport } from '@/lib/reportPdf';
 import { exportDashboardVisualPdf } from '@/lib/pdfExport';
 import { exportRawParameterCsv } from '@/lib/rawExport';
+import { scoreExplanationFor } from '@/lib/scoreExplanation';
 
 const CATEGORY_LABELS: Record<string, string> = {
   operational: 'Operational Metrics',
@@ -726,23 +727,29 @@ export default function Dashboard() {
 
   const rawDisplayData = processMetricsData();
 
-  // Attach month-over-month trend to each card param, Monthly view only.
-  // Combined periods have no clean "previous", so they get no trend and the
-  // cards render without the arrow.
+  // Enrich each card param with (a) a "how was this scored?" explanation
+  // (always), and (b) a month-over-month trend (Monthly view only — combined
+  // periods have no clean "previous").
   const displayData = (() => {
-    if (periodType !== 'monthly' || !prevMonthData || prevMonthData.length === 0) return rawDisplayData;
-    const prev = buildDisplayData(prevMonthData[0]);
-    const prevMap = new Map<string, { score: number; notReported: boolean }>();
-    Object.values(prev).flat().forEach((p: any) => {
-      prevMap.set(p.title, { score: p.score, notReported: !p.isIncident && p.target === 0 && p.actual === 0 });
-    });
+    // Previous-month scores keyed by title, for the trend arrow.
+    let prevMap: Map<string, { score: number; notReported: boolean }> | null = null;
+    if (periodType === 'monthly' && prevMonthData && prevMonthData.length > 0) {
+      prevMap = new Map();
+      Object.values(buildDisplayData(prevMonthData[0])).flat().forEach((p: any) => {
+        prevMap!.set(p.title, { score: p.score, notReported: !p.isIncident && p.target === 0 && p.actual === 0 });
+      });
+    }
     return Object.fromEntries(
       Object.entries(rawDisplayData).map(([cat, params]) => [
         cat,
         (params as any[]).map((p) => {
           const isNR = !p.isIncident && p.target === 0 && p.actual === 0;
-          const pv = prevMap.get(p.title);
-          return isNR || !pv || pv.notReported ? p : { ...p, trend: { delta: p.score - pv.score } };
+          const out: any = { ...p, explanation: scoreExplanationFor(p) };
+          if (prevMap && !isNR) {
+            const pv = prevMap.get(p.title);
+            if (pv && !pv.notReported) out.trend = { delta: p.score - pv.score };
+          }
+          return out;
         }),
       ])
     ) as typeof rawDisplayData;

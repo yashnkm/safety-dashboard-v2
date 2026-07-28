@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
-import { TrendingUp, TrendingDown, Minus, type LucideIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, HelpCircle, type LucideIcon } from 'lucide-react';
 import MiniDonut from './MiniDonut.tsx';
 
 interface ParameterCardProps {
@@ -16,6 +17,8 @@ interface ParameterCardProps {
   // view (combined periods have no clean "previous"), so its presence alone
   // controls whether the trend row renders.
   trend?: { delta: number };
+  // "How was this scored?" drill-down: the rule + the actual numbers.
+  explanation?: { method: string; formula: string; calc: string };
 }
 
 export default function ParameterCard({
@@ -28,7 +31,9 @@ export default function ParameterCard({
   unit = '',
   isIncident = false,
   trend,
+  explanation,
 }: ParameterCardProps) {
+  const [showHow, setShowHow] = useState(false);
   // How many of this parameter's points were actually earned toward the
   // 100-point total — distinct from "Achievement", which is just this
   // parameter's own ratio and says nothing about how much it matters.
@@ -155,6 +160,27 @@ export default function ParameterCard({
             {pointsEarned.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">/ {weight} pts</span>
           </span>
         </div>
+
+        {/* "How was this scored?" audit drill-down */}
+        {explanation && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowHow((v) => !v)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-gray-700 transition-colors"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              {showHow ? 'Hide how this was scored' : 'How was this scored?'}
+            </button>
+            {showHow && (
+              <div className="mt-1.5 rounded-md bg-gray-50 border border-gray-200 p-2 text-[11px] leading-relaxed">
+                <p className="font-medium text-gray-700">{explanation.method}</p>
+                <p className="text-muted-foreground">{explanation.formula}</p>
+                <p className="mt-1 font-mono text-gray-600">{explanation.calc}</p>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

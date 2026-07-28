@@ -10,6 +10,7 @@ export interface RawExportParam {
   weight: number;
   unit?: string;
   isIncident?: boolean;
+  explanation?: { method: string; formula: string; calc: string };
 }
 
 export interface RawExportOptions {
@@ -40,7 +41,7 @@ export function exportRawParameterCsv(opts: RawExportOptions, fileName: string):
   rows.push(['Generated', opts.generatedAt].map(csvCell).join(','));
   rows.push('');
   rows.push(
-    ['Category', 'Parameter', 'Target', 'Actual', 'Unit', 'Achievement %', 'Weight (max pts)', 'Points Earned', 'Status']
+    ['Category', 'Parameter', 'Target', 'Actual', 'Unit', 'Achievement %', 'Weight (max pts)', 'Points Earned', 'Status', 'How Scored']
       .map(csvCell)
       .join(',')
   );
@@ -48,6 +49,7 @@ export function exportRawParameterCsv(opts: RawExportOptions, fileName: string):
   for (const cat of opts.categories) {
     for (const p of cat.params) {
       const nr = isNotReported(p);
+      const howScored = p.explanation ? `${p.explanation.formula} — ${p.explanation.calc}` : '';
       rows.push(
         [
           cat.label,
@@ -59,6 +61,7 @@ export function exportRawParameterCsv(opts: RawExportOptions, fileName: string):
           p.weight,
           ((Number(p.score) * p.weight) / 100).toFixed(2),
           statusOf(p),
+          howScored,
         ]
           .map(csvCell)
           .join(',')
