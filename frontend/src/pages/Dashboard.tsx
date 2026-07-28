@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { exportSafetyReport } from '@/lib/reportPdf';
 import { exportDashboardVisualPdf } from '@/lib/pdfExport';
+import { exportRawParameterCsv } from '@/lib/rawExport';
 
 const CATEGORY_LABELS: Record<string, string> = {
   operational: 'Operational Metrics',
@@ -61,6 +62,43 @@ const CATEGORY_LABELS: Record<string, string> = {
   health: 'Health & Hygiene',
 };
 const CATEGORY_ORDER = ['operational', 'training', 'compliance', 'documentation', 'emergency', 'incidents', 'ppe', 'environment', 'health'];
+
+// Compact x-axis labels for the parameters bar chart, keyed by the full
+// parameter title used in displayData.
+const BAR_SHORT_NAMES: Record<string, string> = {
+  'Man Days': 'Man Days',
+  'Safe Work Hours Cumulative': 'Safe Work Hours',
+  'Safety Induction': 'Safety Induction',
+  'Tool Box Talk': 'Toolbox Talk',
+  'Job Specific Training': 'Job Training',
+  'Workforce Trained %': 'Workforce Trained %',
+  'Upcoming Trainings': 'Upcoming Trainings',
+  'Overdue Trainings': 'Overdue Trainings',
+  'Formal Safety Inspection Done': 'Safety Inspection',
+  'Non-Compliance Raised': 'Non-Comp Raised',
+  'Non-Compliance Close': 'Non-Comp Close',
+  'Safety Observation Raised': 'Safety Obs Raised',
+  'Safety Observation Close': 'Safety Obs Close',
+  'Work Permit Issued': 'Work Permit',
+  'Safe Work Method Statement': 'SWMS',
+  'Emergency Preparedness Mock Drills': 'Mock Drills',
+  'Internal Audit': 'Internal Audit',
+  'Near Miss Report': 'Near Miss',
+  'First Aid Injury': 'First Aid',
+  'Medical Treatment Injury': 'Med Treatment',
+  'Lost Time Injury': 'Lost Time Injury',
+  'Recordable Incidents': 'Recordable Incidents',
+  'PPE Compliance Rate': 'PPE Compliance %',
+  'PPE Observations': 'PPE Observations',
+  'Waste Generated': 'Waste Generated',
+  'Waste Disposed': 'Waste Disposed',
+  'Energy Consumption': 'Energy Consumption',
+  'Water Consumption': 'Water Consumption',
+  'Spills Incidents': 'Spills Incidents',
+  'Environmental Incidents': 'Environmental Incidents',
+  'Health Checkup Compliance': 'Health Checkup %',
+  'Water Quality Test': 'Water Quality Tests',
+};
 import { resolvePeriods, periodLabel, type PeriodSelection, type PeriodType, type Quarter, type Half } from '@/lib/periodUtils';
 
 type CategoryKey = 'operational' | 'training' | 'compliance' | 'documentation' | 'emergency' | 'incidents' | 'ppe' | 'environment' | 'health';
@@ -778,55 +816,18 @@ export default function Dashboard() {
 
   // Prepare data for overall bar chart (all 32 parameters) - with achievement percentages
   const prepareBarChartData = () => {
-    if (!metricsData || metricsData.length === 0) return [];
-
-    const metric = metricsData[0];
-
-    // Read each parameter's achievement % directly from the backend-computed
-    // score (stored 0-10, scaled to 0-100) instead of re-deriving it here.
-    // A local re-implementation of the scoring rules previously drifted out
-    // of sync with the backend's (e.g. still showing 0% for Near Miss Report
-    // after it stopped being penalized for non-zero counts) — reading the
-    // same value the backend already computed makes that class of bug
-    // impossible.
-    const pct = (score: any) => (Number(score) || 0) * 10;
-
-    return [
-      // Original 18 parameters
-      { name: 'Man Days', percentage: pct(metric.manDaysScore) },
-      { name: 'Safe Work Hours', percentage: pct(metric.safeWorkHoursScore) },
-      { name: 'Safety Induction', percentage: pct(metric.safetyInductionScore) },
-      { name: 'Toolbox Talk', percentage: pct(metric.toolBoxTalkScore) },
-      { name: 'Job Training', percentage: pct(metric.jobSpecificTrainingScore) },
-      { name: 'Safety Inspection', percentage: pct(metric.formalSafetyInspectionScore) },
-      { name: 'Non-Comp Raised', percentage: pct(metric.nonComplianceRaisedScore) },
-      { name: 'Non-Comp Close', percentage: pct(metric.nonComplianceCloseScore) },
-      { name: 'Safety Obs Raised', percentage: pct(metric.safetyObservationRaisedScore) },
-      { name: 'Safety Obs Close', percentage: pct(metric.safetyObservationCloseScore) },
-      { name: 'Work Permit', percentage: pct(metric.workPermitIssuedScore) },
-      { name: 'SWMS', percentage: pct(metric.safeWorkMethodStatementScore) },
-      { name: 'Mock Drills', percentage: pct(metric.emergencyMockDrillsScore) },
-      { name: 'Internal Audit', percentage: pct(metric.internalAuditScore) },
-      { name: 'Near Miss', percentage: pct(metric.nearMissReportScore) },
-      { name: 'First Aid', percentage: pct(metric.firstAidInjuryScore) },
-      { name: 'Med Treatment', percentage: pct(metric.medicalTreatmentInjuryScore) },
-      { name: 'Lost Time Injury', percentage: pct(metric.lostTimeInjuryScore) },
-      // New 14 parameters
-      { name: 'Recordable Incidents', percentage: pct(metric.recordableIncidentsScore) },
-      { name: 'PPE Compliance %', percentage: pct(metric.ppeComplianceRateScore) },
-      { name: 'PPE Observations', percentage: pct(metric.ppeObservationsScore) },
-      { name: 'Workforce Trained %', percentage: pct(metric.workforceTrainedScore) },
-      { name: 'Upcoming Trainings', percentage: pct(metric.upcomingTrainingsScore) },
-      { name: 'Overdue Trainings', percentage: pct(metric.overdueTrainingsScore) },
-      { name: 'Waste Generated', percentage: pct(metric.wasteGeneratedScore) },
-      { name: 'Waste Disposed', percentage: pct(metric.wasteDisposedScore) },
-      { name: 'Energy Consumption', percentage: pct(metric.energyConsumptionScore) },
-      { name: 'Water Consumption', percentage: pct(metric.waterConsumptionScore) },
-      { name: 'Spills Incidents', percentage: pct(metric.spillsIncidentsScore) },
-      { name: 'Environmental Incidents', percentage: pct(metric.environmentalIncidentsScore) },
-      { name: 'Health Checkup %', percentage: pct(metric.healthCheckupComplianceScore) },
-      { name: 'Water Quality Tests', percentage: pct(metric.waterQualityTestScore) },
-    ];
+    // Derived from displayData (the same source the cards/report use) so each
+    // bar carries the real "not reported" flag — a not-reported parameter is
+    // drawn as a distinct grey marker rather than an invisible 0% bar that
+    // looks like a genuine failure. `score` here is already 0-100.
+    return (Object.values(displayData).flat() as any[]).map((p) => {
+      const notReported = !p.isIncident && p.target === 0 && p.actual === 0;
+      return {
+        name: BAR_SHORT_NAMES[p.title] || p.title,
+        percentage: notReported ? 0 : Number(p.score) || 0,
+        notReported,
+      };
+    });
   };
 
   // Calculate cumulative score from real data
@@ -909,7 +910,7 @@ export default function Dashboard() {
     return { reported, total, adjustedPercentage };
   })();
 
-  const handleExportReport = async (mode: 'summary' | 'full' | 'visual') => {
+  const handleExportReport = async (mode: 'summary' | 'full' | 'visual' | 'raw') => {
     if (isExporting) return;
     setReportMenuOpen(false);
 
@@ -920,7 +921,9 @@ export default function Dashboard() {
       return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase()).join('-');
     };
     const suffix = mode === 'full' ? '_Full' : mode === 'visual' ? '_Snapshot' : '';
-    const fileName = `Safety-Report_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}${suffix}.pdf`;
+    const baseName = mode === 'raw' ? 'Safety-RawData' : 'Safety-Report';
+    const ext = mode === 'raw' ? 'csv' : 'pdf';
+    const fileName = `${baseName}_${cleanToken(dataSourceInfo?.label || 'report')}_${cleanToken(periodLabel(periodSelection))}${suffix}.${ext}`;
 
     // Company name + logo for whichever company the report is about.
     const companyId = user?.role === 'SUPER_ADMIN' ? selectedCompanyId : (user as any)?.companyId;
@@ -946,6 +949,20 @@ export default function Dashboard() {
 
     setIsExporting(true);
     try {
+      if (mode === 'raw') {
+        // Raw parameter-level CSV — no logo/render needed.
+        exportRawParameterCsv(
+          {
+            siteLabel: dataSourceInfo?.label || 'Safety Report',
+            period: periodLabel(periodSelection),
+            generatedAt: new Date().toLocaleString(),
+            categories,
+          },
+          fileName
+        );
+        setExportStatus('success');
+        return;
+      }
       const logo = logoUrl ? await loadLogoForPdf(logoUrl) : null;
       if (mode === 'visual') {
         // Old behaviour: a pixel-for-pixel screenshot of the dashboard.
@@ -1070,6 +1087,13 @@ export default function Dashboard() {
                       >
                         <span className="font-medium">Visual snapshot</span>
                         <span className="block text-xs text-muted-foreground">Image of the dashboard as shown</span>
+                      </button>
+                      <button
+                        onClick={() => handleExportReport('raw')}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <span className="font-medium">Raw data (CSV)</span>
+                        <span className="block text-xs text-muted-foreground">Parameter-level numbers for verification</span>
                       </button>
                     </div>
                   </>

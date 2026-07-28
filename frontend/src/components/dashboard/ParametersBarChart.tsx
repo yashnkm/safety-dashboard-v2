@@ -1,9 +1,10 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ParameterData {
   name: string;
   percentage: number;
+  notReported?: boolean;
 }
 
 interface ParametersBarChartProps {
@@ -16,8 +17,17 @@ interface ParametersBarChartProps {
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const percentage = data.percentage;
 
+    if (data.notReported) {
+      return (
+        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+          <p className="font-semibold text-gray-900 mb-1">{data.name}</p>
+          <p className="text-sm font-medium text-gray-500">Not Reported — no data entered</p>
+        </div>
+      );
+    }
+
+    const percentage = data.percentage;
     return (
       <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
         <p className="font-semibold text-gray-900 mb-2">{data.name}</p>
@@ -41,13 +51,33 @@ const getBarColor = (percentage: number) => {
   return '#ef4444'; // red
 };
 
+// Custom bar: normal coloured bar for reported params; for "not reported"
+// params (which would otherwise be an invisible 0% bar, indistinguishable
+// from a genuine failure) draw a small grey marker at the baseline instead.
+const renderBar = (props: any) => {
+  const { x, y, width, height, payload } = props;
+  if (payload.notReported) {
+    const stub = 6;
+    return <rect x={x} y={y - stub} width={width} height={stub} fill="#d1d5db" rx={1} />;
+  }
+  return <rect x={x} y={y} width={width} height={height} rx={4} ry={4} fill={getBarColor(payload.percentage)} />;
+};
+
 export default function ParametersBarChart({ data, title, subtitle }: ParametersBarChartProps) {
+  const hasNotReported = data.some((d) => d.notReported);
+
   return (
     <Card className="border-0 shadow-lg">
       <CardHeader>
         <CardTitle className="text-lg font-semibold text-gray-700">{title}</CardTitle>
         {subtitle && (
           <p className="text-sm text-gray-500">{subtitle}</p>
+        )}
+        {hasNotReported && (
+          <p className="text-xs text-gray-400 mt-1">
+            <span className="inline-block w-3 h-2 align-middle rounded-sm mr-1" style={{ backgroundColor: '#d1d5db' }} />
+            Grey marker = not reported this period (distinct from a scored 0%).
+          </p>
         )}
       </CardHeader>
       <CardContent>
@@ -70,15 +100,7 @@ export default function ParametersBarChart({ data, title, subtitle }: Parameters
               domain={[0, 100]}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Bar
-              dataKey="percentage"
-              radius={[8, 8, 0, 0]}
-              name="Achievement %"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={getBarColor(entry.percentage)} />
-              ))}
-            </Bar>
+            <Bar dataKey="percentage" name="Achievement %" shape={renderBar} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
