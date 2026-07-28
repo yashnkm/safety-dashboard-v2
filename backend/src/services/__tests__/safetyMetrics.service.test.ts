@@ -95,109 +95,114 @@ describe('configurable weights', () => {
   });
 });
 
-describe('calculateParameterScore', () => {
-  it('awards full weight for zero incidents (target=0, actual=0)', () => {
+describe('calculateParameterScore (by direction)', () => {
+  it('zeroDecay: awards full weight for zero occurrences (target=0, actual=0)', () => {
     // Regression guard: the no-data guard used to run before the incident
     // check, so a genuinely perfect zero-incident month scored 0 instead of
     // full weight, indistinguishable from "no data entered".
-    expect(service.calculateParameterScore(0, 0, 8, true, false)).toBe(8);
+    expect(service.calculateParameterScore(0, 0, 8, 'zeroDecay')).toBe(8);
   });
 
-  it('decays severity-scaled when incidents occurred, instead of a flat cliff to zero', () => {
+  it('zeroDecay: decays severity-scaled when occurrences happened, instead of a flat cliff to zero', () => {
     // weight / (1 + actual) - fewer incidents still score meaningfully
     // higher than more of the same type, rather than both flooring to 0.
-    expect(service.calculateParameterScore(0, 1, 8, true, false)).toBeCloseTo(4, 5);
-    expect(service.calculateParameterScore(0, 3, 8, true, false)).toBeCloseTo(2, 5);
-    expect(service.calculateParameterScore(0, 45, 8, true, false)).toBeCloseTo(8 / 46, 5);
-    expect(service.calculateParameterScore(0, 1, 8, true, false)).toBeGreaterThan(
-      service.calculateParameterScore(0, 3, 8, true, false)
+    expect(service.calculateParameterScore(0, 1, 8, 'zeroDecay')).toBeCloseTo(4, 5);
+    expect(service.calculateParameterScore(0, 3, 8, 'zeroDecay')).toBeCloseTo(2, 5);
+    expect(service.calculateParameterScore(0, 45, 8, 'zeroDecay')).toBeCloseTo(8 / 46, 5);
+    expect(service.calculateParameterScore(0, 1, 8, 'zeroDecay')).toBeGreaterThan(
+      service.calculateParameterScore(0, 3, 8, 'zeroDecay')
     );
   });
 
-  it('LTIFR/TRIR-style rate-based scoring: normalizes severity by hours worked instead of raw count', () => {
+  it('rate: LTIFR/TRIR normalizes severity by hours worked instead of raw count', () => {
     // 2 injuries at 50,000 hours -> LTIFR = 2,000,000/50,000 = 40 -> weight/(1+40)
-    const smallSite = service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 50_000);
+    const smallSite = service.calculateParameterScore(0, 2, 8, 'rate', 1_000_000, 50_000);
     expect(smallSite).toBeCloseTo(8 / 41, 5);
 
     // Same 2 injuries at 500,000 hours -> LTIFR = 2,000,000/500,000 = 4 -> weight/(1+4)
-    const bigSite = service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 500_000);
+    const bigSite = service.calculateParameterScore(0, 2, 8, 'rate', 1_000_000, 500_000);
     expect(bigSite).toBeCloseTo(8 / 5, 5);
 
     // Same raw count, but the smaller site (higher rate) scores meaningfully worse
     expect(bigSite).toBeGreaterThan(smallSite);
   });
 
-  it('falls back to the plain per-count decay when hours-worked data is missing or zero', () => {
-    expect(service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, 0)).toBeCloseTo(
-      8 / 3,
-      5
-    );
-    expect(
-      service.calculateParameterScore(0, 2, 8, true, false, false, false, 1_000_000, undefined)
-    ).toBeCloseTo(8 / 3, 5);
+  it('rate: falls back to plain per-count decay when hours-worked data is missing or zero', () => {
+    expect(service.calculateParameterScore(0, 2, 8, 'rate', 1_000_000, 0)).toBeCloseTo(8 / 3, 5);
+    expect(service.calculateParameterScore(0, 2, 8, 'rate', 1_000_000, undefined)).toBeCloseTo(8 / 3, 5);
   });
 
-  it('rate-based parameters still award full weight for zero incidents, hours worked notwithstanding', () => {
-    expect(service.calculateParameterScore(0, 0, 8, true, false, false, false, 1_000_000, 500_000)).toBe(8);
+  it('rate: still awards full weight for zero incidents, hours worked notwithstanding', () => {
+    expect(service.calculateParameterScore(0, 0, 8, 'rate', 1_000_000, 500_000)).toBe(8);
   });
 
-  it('treats target=0, actual=0 as no data for non-incident parameters', () => {
-    expect(service.calculateParameterScore(0, 0, 2, false, false)).toBe(0);
+  it('higher: treats target=0, actual=0 as no data', () => {
+    expect(service.calculateParameterScore(0, 0, 2, 'higher')).toBe(0);
   });
 
-  it('leading indicators (e.g. Near Miss Report) never decay for a non-zero count', () => {
-    // Unlike true incidents, reporting more shouldn't hurt the score - both
-    // zero and non-zero counts score full weight.
-    expect(service.calculateParameterScore(0, 0, 8, true, false, false, true)).toBe(8);
-    expect(service.calculateParameterScore(0, 1, 8, true, false, false, true)).toBe(8);
-    expect(service.calculateParameterScore(0, 45, 8, true, false, false, true)).toBe(8);
+  it('zeroLeading: never decays for a non-zero count (reporting encouraged)', () => {
+    expect(service.calculateParameterScore(0, 0, 8, 'zeroLeading')).toBe(8);
+    expect(service.calculateParameterScore(0, 1, 8, 'zeroLeading')).toBe(8);
+    expect(service.calculateParameterScore(0, 45, 8, 'zeroLeading')).toBe(8);
   });
 
-  it('awards full weight when target equals actual (both > 0)', () => {
-    expect(service.calculateParameterScore(100, 100, 2, false, false)).toBe(2);
+  it('higher: awards full weight when target equals actual (both > 0)', () => {
+    expect(service.calculateParameterScore(100, 100, 2, 'higher')).toBe(2);
   });
 
-  it('scores proportionally to the actual/target ratio', () => {
-    expect(service.calculateParameterScore(100, 50, 2, false, false)).toBe(1);
-    expect(service.calculateParameterScore(200, 50, 8, false, false)).toBe(2);
+  it('higher: scores proportionally to the actual/target ratio', () => {
+    expect(service.calculateParameterScore(100, 50, 2, 'higher')).toBe(1);
+    expect(service.calculateParameterScore(200, 50, 8, 'higher')).toBe(2);
   });
 
-  it('caps ratio scoring at the max weight, never exceeding it', () => {
-    expect(service.calculateParameterScore(100, 150, 2, false, false)).toBe(2);
+  it('higher: caps ratio scoring at the max weight, never exceeding it', () => {
+    expect(service.calculateParameterScore(100, 150, 2, 'higher')).toBe(2);
   });
 
-  it('returns 0 by default for a positive-ratio parameter with target=0, even with real actual activity', () => {
-    // blankTargetAwardsFullCredit defaults to false - most ratio parameters
-    // (e.g. Upcoming Trainings) have no basis for treating "more" as
-    // automatically good, so a blank target stays a 0 until a real target
-    // is configured.
-    expect(service.calculateParameterScore(0, 5, 2, false, false)).toBe(0);
+  it('higher: returns 0 for target=0 with real actual activity (no basis for a ratio)', () => {
+    expect(service.calculateParameterScore(0, 5, 2, 'higher')).toBe(0);
   });
 
-  it('awards full weight for a positive-ratio parameter with target=0 and real actual activity, when opted in', () => {
-    // blankTargetAwardsFullCredit=true is reserved for leading indicators
-    // like Safety Observation Raised / PPE Observations, where more
-    // reporting is defensibly good and there's no target to compute a
-    // ratio against.
-    expect(service.calculateParameterScore(0, 5, 2, false, false, true)).toBe(2);
+  it('higherActivity: awards full weight for target=0 with real actual activity', () => {
+    // Leading indicators (Safety Observation Raised / PPE Observations /
+    // Upcoming Trainings) where more reporting is defensibly good.
+    expect(service.calculateParameterScore(0, 5, 2, 'higherActivity')).toBe(2);
   });
 
-  it('still returns 0 for a positive-ratio parameter with target=0 and actual=0 (no data), even when opted in', () => {
-    expect(service.calculateParameterScore(0, 0, 2, false, false, true)).toBe(0);
+  it('higherActivity: still returns 0 for target=0 and actual=0 (no data)', () => {
+    expect(service.calculateParameterScore(0, 0, 2, 'higherActivity')).toBe(0);
   });
 
-  it('lowerIsBetter: awards full weight when actual is at or below target', () => {
-    expect(service.calculateParameterScore(100, 80, 2, false, true)).toBe(2);
-    expect(service.calculateParameterScore(100, 100, 2, false, true)).toBe(2);
+  it('lower: awards full weight when actual is at or below target', () => {
+    expect(service.calculateParameterScore(100, 80, 2, 'lower')).toBe(2);
+    expect(service.calculateParameterScore(100, 100, 2, 'lower')).toBe(2);
   });
 
-  it('lowerIsBetter: penalizes proportionally when actual exceeds target', () => {
-    // ratio = target/actual = 100/150, score = ratio * weight
-    expect(service.calculateParameterScore(100, 150, 2, false, true)).toBeCloseTo((100 / 150) * 2, 5);
+  it('lower: penalizes proportionally when actual exceeds target', () => {
+    expect(service.calculateParameterScore(100, 150, 2, 'lower')).toBeCloseTo((100 / 150) * 2, 5);
   });
 
-  it('lowerIsBetter: returns 0 when target is 0 (avoids div by zero)', () => {
-    expect(service.calculateParameterScore(0, 5, 2, false, true)).toBe(0);
+  it('lower: returns 0 when target is 0 (avoids div by zero)', () => {
+    expect(service.calculateParameterScore(0, 5, 2, 'lower')).toBe(0);
+  });
+});
+
+describe('DIRECTION_DEFAULTS', () => {
+  it('covers exactly the same 32 parameter keys as PARAMETER_WEIGHTS', () => {
+    const dirKeys = Object.keys(service.getDirectionDefaults()).sort();
+    const weightKeys = Object.keys(service.PARAMETER_WEIGHTS).sort();
+    expect(dirKeys).toEqual(weightKeys);
+  });
+
+  it('classifies the key "should be zero / leading / rate / lower" params correctly', () => {
+    const d = service.getDirectionDefaults();
+    expect(d.nonComplianceRaised).toBe('zeroDecay');
+    expect(d.nearMissReport).toBe('zeroLeading');
+    expect(d.lostTimeInjury).toBe('rate');
+    expect(d.recordableIncidents).toBe('rate');
+    expect(d.wasteGenerated).toBe('lower');
+    expect(d.safetyObservationRaised).toBe('higherActivity');
+    expect(d.manDays).toBe('higher');
   });
 });
 

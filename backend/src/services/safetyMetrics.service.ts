@@ -10,6 +10,28 @@ interface MetricsFilters {
   year?: number;
 }
 
+/**
+ * How a parameter is scored. Replaces the old scattered boolean flags
+ * (isIncident / lowerIsBetter / blankTargetAwardsFullCredit / leadingIndicator
+ * / rateMultiplier) with one configurable value per parameter.
+ */
+export type ScoreDirection =
+  | 'higher' // higher is better: Actual ÷ Target
+  | 'higherActivity' // leading indicator; any activity earns full marks when no target
+  | 'lower' // lower is better: Target ÷ Actual
+  | 'zeroDecay' // should be zero: Weight ÷ (1 + count)
+  | 'zeroLeading' // zero is the goal but reporting is encouraged; never penalised
+  | 'rate'; // should be zero, rate-based (LTIFR/TRIR) normalised by hours worked
+
+export const SCORE_DIRECTIONS: ScoreDirection[] = [
+  'higher',
+  'higherActivity',
+  'lower',
+  'zeroDecay',
+  'zeroLeading',
+  'rate',
+];
+
 export class SafetyMetricsService {
   /**
    * Get KPI summary for dashboard
@@ -102,27 +124,44 @@ export class SafetyMetricsService {
     });
 
     // A SUPER_ADMIN's results can span multiple companies, each with its own
-    // configured weights — fetch each distinct company's weights once rather
-    // than per-record.
+    // configured weights AND scoring config — fetch each distinct company's
+    // once rather than per-record.
     const distinctCompanyIds = [...new Set(metrics.map((m) => m.site.companyId))];
     const weightsByCompany = new Map(
       await Promise.all(
         distinctCompanyIds.map(async (id) => [id, await this.getCompanyWeights(id)] as const)
       )
     );
+    const configByCompany = new Map(
+      await Promise.all(
+        distinctCompanyIds.map(async (id) => [id, await this.getCompanyScoringConfig(id)] as const)
+      )
+    );
 
-    // Calculate totalScore, percentage, rating, and KPIs dynamically for each metric
+    // Recompute each parameter's score from target/actual using the company's
+    // current weights + directions (rather than trusting the *Score columns
+    // stored at import time), so a config change is reflected immediately on
+    // already-imported single-site records without a re-import.
     return metrics.map((metric) => {
       const weights = weightsByCompany.get(metric.site.companyId) ?? this.getDefaultWeights();
-      const calculatedScores = this.calculateMetricScores(metric, weights);
-      const kpis = this.calculateKPIs(metric);
+      const config = configByCompany.get(metric.site.companyId) ?? {
+        directions: this.getDirectionDefaults(),
+        excellentAt: 90,
+        goodAt: 70,
+      };
+      const recomputed = { ...metric, ...this.calculateAllParameterScores(metric, weights, config.directions) };
+      const calculatedScores = this.calculateMetricScores(recomputed, weights);
+      const kpis = this.calculateKPIs(recomputed);
       return {
-        ...metric,
+        ...recomputed,
         totalScore: calculatedScores.totalScore,
         percentage: calculatedScores.percentage,
         rating: calculatedScores.rating,
         maxScore: 100,
-        kpis, // Add calculated KPIs
+        kpis,
+        excellentAt: config.excellentAt,
+        goodAt: config.goodAt,
+        directions: config.directions,
       };
     });
   }
@@ -153,7 +192,8 @@ export class SafetyMetricsService {
 
     const combined = this.combineFields(records);
     const weights = await this.getCompanyWeights(companyId);
-    const scored = this.scoreCombined(combined, weights);
+    const config = await this.getCompanyScoringConfig(companyId);
+    const scored = this.scoreCombined(combined, weights, config.directions);
 
     return {
       id: `aggregate-${companyId}-${month}-${year}`,
@@ -168,6 +208,9 @@ export class SafetyMetricsService {
       rating: scored.rating,
       maxScore: 100,
       kpis: scored.kpis,
+      excellentAt: config.excellentAt,
+      goodAt: config.goodAt,
+      directions: config.directions,
       site: {
         siteName: `All Sites (${records.length} site${records.length === 1 ? '' : 's'})`,
         siteCode: 'ALL',
@@ -204,8 +247,12 @@ export class SafetyMetricsService {
    * separately-computed scores - important for rate-based KPIs like
    * LTIFR/TRIR, which must come from summed incidents over summed hours.
    */
-  private scoreCombined(combined: Record<string, number>, weights: Record<string, number>) {
-    const processedData = this.calculateAllParameterScores(combined, weights);
+  private scoreCombined(
+    combined: Record<string, number>,
+    weights: Record<string, number>,
+    directions: Record<string, ScoreDirection> = this.DIRECTION_DEFAULTS
+  ) {
+    const processedData = this.calculateAllParameterScores(combined, weights, directions);
     const totalScore = this.calculateTotalScore(processedData, weights);
     const percentage = (totalScore / 100) * 100;
     const rating = this.getRating(percentage);
@@ -246,8 +293,10 @@ export class SafetyMetricsService {
     }
 
     const combined = this.combineFields(records);
-    const weights = await this.getCompanyWeights(companyId ?? records[0].site.companyId);
-    const scored = this.scoreCombined(combined, weights);
+    const scoringCompanyId = companyId ?? records[0].site.companyId;
+    const weights = await this.getCompanyWeights(scoringCompanyId);
+    const config = await this.getCompanyScoringConfig(scoringCompanyId);
+    const scored = this.scoreCombined(combined, weights, config.directions);
 
     const distinctSiteNames = [...new Set(records.map((r) => r.site.siteName))];
     const distinctPeriods = [...new Set(records.map((r) => `${r.month}-${r.year}`))].map((key) => {
@@ -266,6 +315,9 @@ export class SafetyMetricsService {
       rating: scored.rating,
       maxScore: 100,
       kpis: scored.kpis,
+      excellentAt: config.excellentAt,
+      goodAt: config.goodAt,
+      directions: config.directions,
       site: {
         siteName: distinctSiteNames.length === 1 ? distinctSiteNames[0] : `${distinctSiteNames.length} Sites`,
         siteCode: siteId && siteId !== 'all' ? undefined : 'ALL',
@@ -360,11 +412,12 @@ export class SafetyMetricsService {
     // saving into another company's site must still score against that
     // site's configured weights, not their own).
     const weights = await this.getCompanyWeights(site.companyId);
+    const scoringConfig = await this.getCompanyScoringConfig(site.companyId);
 
     // Derive every parameter's score from its target/actual values — never
     // trust *Score fields supplied directly in the request body, the same
     // way bulkImportMetrics() already does for Excel imports.
-    const processedData = this.calculateAllParameterScores(data, weights);
+    const processedData = this.calculateAllParameterScores(data, weights, scoringConfig.directions);
 
     // Calculate total score
     const totalScore = this.calculateTotalScore(processedData, weights);
@@ -606,92 +659,158 @@ export class SafetyMetricsService {
   }
 
   /**
-   * Calculate individual parameter score based on target, actual values, and weight
-   * Uses Excel-style binary scoring for incidents
+   * The default scoring direction for each parameter — the single source of
+   * truth that replaced the per-row hardcoded flags. A company can override
+   * any of these via CompanySettings.scoringDirections.
+   */
+  private readonly DIRECTION_DEFAULTS: Record<string, ScoreDirection> = {
+    manDays: 'higher',
+    safeWorkHours: 'higher',
+    safetyInduction: 'higher',
+    toolBoxTalk: 'higher',
+    jobSpecificTraining: 'higher',
+    formalSafetyInspection: 'higher',
+    emergencyMockDrills: 'higher',
+    internalAudit: 'higher',
+    safetyObservationRaised: 'higherActivity',
+    workforceTrainedPercent: 'higher',
+    ppeObservations: 'higherActivity',
+    upcomingTrainings: 'higherActivity',
+    nonComplianceClose: 'higher',
+    safetyObservationClose: 'higher',
+    workPermitIssued: 'higher',
+    safeWorkMethodStatement: 'higher',
+    ppeComplianceRate: 'higher',
+    nonComplianceRaised: 'zeroDecay',
+    overdueTrainings: 'zeroDecay',
+    nearMissReport: 'zeroLeading',
+    firstAidInjury: 'zeroDecay',
+    medicalTreatmentInjury: 'zeroDecay',
+    lostTimeInjury: 'rate',
+    recordableIncidents: 'rate',
+    wasteGenerated: 'lower',
+    wasteDisposed: 'higher',
+    energyConsumption: 'lower',
+    waterConsumption: 'lower',
+    spillsIncidents: 'zeroDecay',
+    environmentalIncidents: 'zeroDecay',
+    healthCheckupCompliance: 'higher',
+    waterQualityTest: 'higher',
+  };
+
+  // Fixed per-parameter rate multipliers, used only when direction = 'rate'.
+  // LTIFR = per 1,000,000 hours; TRIR = per 200,000 hours. Not admin-editable.
+  private readonly RATE_MULTIPLIER: Record<string, number> = {
+    lostTimeInjury: 1_000_000,
+    recordableIncidents: 200_000,
+  };
+
+  getDirectionDefaults(): Record<string, ScoreDirection> {
+    return { ...this.DIRECTION_DEFAULTS };
+  }
+
+  /** All parameter keys (same set as PARAMETER_WEIGHTS / DIRECTION_DEFAULTS). */
+  getParameterKeys(): string[] {
+    return Object.keys(this.DIRECTION_DEFAULTS);
+  }
+
+  /**
+   * A company's effective scoring config: per-parameter directions (custom
+   * overrides merged over the defaults) plus the Excellent/Good status
+   * cutoffs. Falls back to defaults (and 90/70) when no company or no
+   * settings row exists. Mirrors getCompanyWeights.
+   */
+  async getCompanyScoringConfig(
+    companyId?: string
+  ): Promise<{ directions: Record<string, ScoreDirection>; excellentAt: number; goodAt: number }> {
+    const directions = { ...this.DIRECTION_DEFAULTS };
+    if (!companyId) return { directions, excellentAt: 90, goodAt: 70 };
+
+    const settings = await prisma.companySettings.findUnique({ where: { companyId } });
+    if (!settings) return { directions, excellentAt: 90, goodAt: 70 };
+
+    const overrides = (settings.scoringDirections as Record<string, string>) || {};
+    for (const key of Object.keys(overrides)) {
+      if (key in directions && SCORE_DIRECTIONS.includes(overrides[key] as ScoreDirection)) {
+        directions[key] = overrides[key] as ScoreDirection;
+      }
+    }
+    const excellentAt = Number(settings.statusExcellentAt) || 90;
+    const goodAt = Number(settings.statusGoodAt) || 70;
+    return { directions, excellentAt, goodAt };
+  }
+
+  /**
+   * Calculate an individual parameter's weighted score, keyed by the
+   * parameter's scoring `direction` (see ScoreDirection / DIRECTION_DEFAULTS).
+   * This replaced the previous five scattered boolean flags — every rule is
+   * the same as before, just selected by one configurable direction.
    */
   private calculateParameterScore(
     target: number,
     actual: number,
     weight: number,
-    isIncident: boolean = false,
-    lowerIsBetter: boolean = false,
-    blankTargetAwardsFullCredit: boolean = false,
-    leadingIndicator: boolean = false,
+    direction: ScoreDirection = 'higher',
     rateMultiplier?: number,
     hoursWorked?: number
   ): number {
-    // For incident metrics, target is always 0 by design — "zero incidents"
-    // is the goal, not missing data. This must run BEFORE the no-data guard
-    // below: otherwise a genuinely perfect zero-incident month (target=0,
-    // actual=0) is indistinguishable from "no data entered" and incorrectly
-    // scores 0 instead of full weight. Record-level emptiness (every one of
-    // the 32 parameters at 0) is caught separately by hasNoData().
-    if (isIncident) {
-      // Leading indicators (currently: Near Miss Report) never get punished
-      // for a non-zero count — more reporting reflects a stronger safety
-      // culture, so it always scores full weight, the same as zero reports.
-      if (leadingIndicator) {
-        return weight;
-      }
-      if (actual === 0) {
-        return weight;
-      }
-      // Rate-based severity (LTIFR/TRIR-style, per industry-standard
-      // per-hours-worked formulas): a raw count unfairly equates a small
-      // site to a huge one — 2 injuries at 50,000 hours worked is far more
-      // severe than 2 injuries at 500,000 hours. Normalizing by hours
-      // reflects real frequency relative to site activity. Falls back to
-      // the plain per-count decay when hours-worked data isn't available.
+    // Zero-is-best families: target is always 0 by design, so "actual = 0"
+    // legitimately means "zero occurrences → full marks", not "no data".
+    // These MUST run before the no-data guard below, otherwise a perfect
+    // zero-incident month is indistinguishable from an empty one. (Whole-
+    // record emptiness is caught separately by hasNoData().)
+
+    // Reporting is encouraged (e.g. Near Miss) — never penalised for a count.
+    if (direction === 'zeroLeading') {
+      return weight;
+    }
+    // Severity decay: 0 → full; each occurrence lowers the score smoothly
+    // (weight / (1 + count)) so 1 incident still beats 45 of the same type.
+    if (direction === 'zeroDecay') {
+      return actual === 0 ? weight : weight / (1 + actual);
+    }
+    // Rate-based (LTIFR/TRIR): normalise by hours worked so a small site
+    // isn't equated with a huge one. Falls back to per-count decay when
+    // hours-worked data is missing.
+    if (direction === 'rate') {
+      if (actual === 0) return weight;
       if (rateMultiplier && hoursWorked && hoursWorked > 0) {
         const rate = (actual * rateMultiplier) / hoursWorked;
         return weight / (1 + rate);
       }
-      // Non-zero counts decay smoothly (weight / (1 + actual)) instead of
-      // dropping straight to 0, so severity is distinguishable: 1 incident
-      // still scores meaningfully higher than 45 of the same type.
       return weight / (1 + actual);
     }
 
-    // IMPORTANT: If both target and actual are 0, this means NO DATA - return 0 score
-    // This prevents empty months from showing 100%
+    // Ratio families. target = 0 AND actual = 0 means NO DATA entered.
     if (target === 0 && actual === 0) {
       return 0;
     }
-
-    // Special case: If target equals actual (and both > 0), give full points
+    // target equals actual (both > 0) → full points.
     if (target === actual && target > 0) {
       return weight;
     }
 
-    // For negative metrics (lower actual is better - waste, energy, water, overdue trainings)
-    // Inverted ratio: if actual <= target, full points; if actual > target, reduced points
-    if (lowerIsBetter) {
-      if (target === 0) return 0; // Avoid division by zero
-      if (actual <= target) return weight; // Met or beat target
-
-      // Exceeded target (worse), calculate penalty
-      const ratio = target / actual;
-      const score = ratio * weight;
-      return Math.max(score, 0); // Floor at 0
+    // Lower is better (waste, energy, water): full when at/under target,
+    // else inverted ratio.
+    if (direction === 'lower') {
+      if (target === 0) return 0; // avoid division by zero
+      if (actual <= target) return weight;
+      return Math.max((target / actual) * weight, 0);
     }
 
-    // For positive metrics (higher actual is better)
-    // Ratio-based scoring with max = weight
-    if (target === 0) {
-      // No target was ever set for this field, so there's nothing to compute
-      // a ratio against. This full-credit-for-real-activity treatment is
-      // deliberately opt-in (blankTargetAwardsFullCredit) rather than applied
-      // to every ratio parameter: it's only justified for leading indicators
-      // like Safety Observation Raised / PPE Observations, where "more" is
-      // defensibly good. For most other parameters (e.g. Upcoming Trainings)
-      // there's no such argument, so they keep the old, safer default of 0
-      // until a real target is configured.
-      return blankTargetAwardsFullCredit && actual > 0 ? weight : 0;
+    // Higher-is-better leading indicator (Safety Observation Raised, PPE
+    // Observations, Upcoming Trainings): with no target set, any real
+    // activity earns full credit rather than 0. With a target, behaves like
+    // a normal ratio.
+    if (direction === 'higherActivity') {
+      if (target === 0) return actual > 0 ? weight : 0;
+      return Math.min((actual / target) * weight, weight);
     }
 
-    const ratio = actual / target;
-    const score = ratio * weight;
-    return Math.min(score, weight); // Cap at max weight
+    // 'higher' (default): higher actual is better. No target → nothing to
+    // score a ratio against, so 0 until one is configured.
+    if (target === 0) return 0;
+    return Math.min((actual / target) * weight, weight);
   }
 
   /**
@@ -1044,8 +1163,9 @@ export class SafetyMetricsService {
     };
 
     // Fetched once for the whole batch — every row in an import belongs to
-    // the same site, so the same company's weights apply throughout.
+    // the same site, so the same company's weights + directions apply throughout.
     const weights = await this.getCompanyWeights(site.companyId);
+    const scoringConfig = await this.getCompanyScoringConfig(site.companyId);
 
     // Process each month's data
     for (const monthData of metricsData) {
@@ -1066,7 +1186,7 @@ export class SafetyMetricsService {
         }
 
         // Calculate individual parameter scores
-        const processedData = this.calculateAllParameterScores(data, weights);
+        const processedData = this.calculateAllParameterScores(data, weights, scoringConfig.directions);
 
         // Calculate total score
         const totalScore = this.calculateTotalScore(processedData, weights);
@@ -1154,102 +1274,74 @@ export class SafetyMetricsService {
    * Calculate scores for all parameters with proper weights
    * NOW INCLUDES ALL 32 PARAMETERS (18 original + 14 new)
    */
-  private calculateAllParameterScores(data: any, weights: Record<string, number> = this.PARAMETER_WEIGHTS): any {
+  private calculateAllParameterScores(
+    data: any,
+    weights: Record<string, number> = this.PARAMETER_WEIGHTS,
+    directions: Record<string, ScoreDirection> = this.DIRECTION_DEFAULTS
+  ): any {
     const processedData: any = {};
 
-    // Define parameter mappings (field name -> weight -> isIncident flag -> lowerIsBetter flag)
-    const parameters = [
-      // Core Performance (2 pts each)
-      { target: 'manDaysTarget', actual: 'manDaysActual', score: 'manDaysScore', weight: weights.manDays, isIncident: false, lowerIsBetter: false },
-      { target: 'safeWorkHoursTarget', actual: 'safeWorkHoursActual', score: 'safeWorkHoursScore', weight: weights.safeWorkHours, isIncident: false, lowerIsBetter: false },
-      { target: 'safetyInductionTarget', actual: 'safetyInductionActual', score: 'safetyInductionScore', weight: weights.safetyInduction, isIncident: false, lowerIsBetter: false },
-      { target: 'toolBoxTalkTarget', actual: 'toolBoxTalkActual', score: 'toolBoxTalkScore', weight: weights.toolBoxTalk, isIncident: false, lowerIsBetter: false },
-      { target: 'jobSpecificTrainingTarget', actual: 'jobSpecificTrainingActual', score: 'jobSpecificTrainingScore', weight: weights.jobSpecificTraining, isIncident: false, lowerIsBetter: false },
-      { target: 'formalSafetyInspectionTarget', actual: 'formalSafetyInspectionActual', score: 'formalSafetyInspectionScore', weight: weights.formalSafetyInspection, isIncident: false, lowerIsBetter: false },
-      { target: 'emergencyMockDrillsTarget', actual: 'emergencyMockDrillsActual', score: 'emergencyMockDrillsScore', weight: weights.emergencyMockDrills, isIncident: false, lowerIsBetter: false },
-      { target: 'internalAuditTarget', actual: 'internalAuditActual', score: 'internalAuditScore', weight: weights.internalAudit, isIncident: false, lowerIsBetter: false },
-      // Leading indicators where "more reporting" is defensibly good, so a
-      // blank target with real activity earns full credit instead of 0.
-      { target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore', weight: weights.safetyObservationRaised, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true },
-      { target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore', weight: weights.workforceTrainedPercent, isIncident: false, lowerIsBetter: false }, // NEW
-      { target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore', weight: weights.ppeObservations, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
-      // Proactive scheduling ahead of time is a good sign, not a backlog -
-      // a blank target with real trainings scheduled earns full credit
-      // instead of 0, same treatment as Safety Observation Raised above.
-      { target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore', weight: weights.upcomingTrainings, isIncident: false, lowerIsBetter: false, blankTargetAwardsFullCredit: true }, // NEW
-
-      // Documentation (1 pt each)
-      { target: 'nonComplianceCloseTarget', actual: 'nonComplianceCloseActual', score: 'nonComplianceCloseScore', weight: weights.nonComplianceClose, isIncident: false, lowerIsBetter: false },
-      { target: 'safetyObservationCloseTarget', actual: 'safetyObservationCloseActual', score: 'safetyObservationCloseScore', weight: weights.safetyObservationClose, isIncident: false, lowerIsBetter: false },
-      { target: 'workPermitIssuedTarget', actual: 'workPermitIssuedActual', score: 'workPermitIssuedScore', weight: weights.workPermitIssued, isIncident: false, lowerIsBetter: false },
-      { target: 'safeWorkMethodStatementTarget', actual: 'safeWorkMethodStatementActual', score: 'safeWorkMethodStatementScore', weight: weights.safeWorkMethodStatement, isIncident: false, lowerIsBetter: false },
-
-      // PPE Compliance (2 pts) - NEW
-      { target: 'ppeComplianceRateTarget', actual: 'ppeComplianceRateActual', score: 'ppeComplianceRateScore', weight: weights.ppeComplianceRate, isIncident: false, lowerIsBetter: false },
-
-      // Compliance Issues (4 pts) - Binary
-      { target: 'nonComplianceRaisedTarget', actual: 'nonComplianceRaisedActual', score: 'nonComplianceRaisedScore', weight: weights.nonComplianceRaised, isIncident: true, lowerIsBetter: false },
-
-      // Training Management (2 pts) - Binary - NEW
-      { target: 'overdueTrainingsTarget', actual: 'overdueTrainingsActual', score: 'overdueTrainingsScore', weight: weights.overdueTrainings, isIncident: true, lowerIsBetter: false },
-
-      // Critical Incidents (8 pts each) - Binary
-      //
-      // Near Miss Report stays on the incident code path (target is always 0
-      // by design, so actual=0 still unambiguously means "no data" isn't a
-      // concern here) but is marked as a leading indicator: unlike its
-      // neighbors below, more reporting reflects a stronger safety culture
-      // and should be encouraged, not punished. leadingIndicator skips the
-      // severity decay so a non-zero count never drags the score down.
-      { target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore', weight: weights.nearMissReport, isIncident: true, lowerIsBetter: false, leadingIndicator: true },
-      { target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore', weight: weights.firstAidInjury, isIncident: true, lowerIsBetter: false },
-      { target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore', weight: weights.medicalTreatmentInjury, isIncident: true, lowerIsBetter: false },
-      // LTIFR = (Lost Time Injuries x 1,000,000) / hours worked - severity
-      // normalized by site activity level, not a raw count.
-      { target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore', weight: weights.lostTimeInjury, isIncident: true, lowerIsBetter: false, rateMultiplier: 1_000_000 },
-      // TRIR = (Recordable Incidents x 200,000) / hours worked.
-      { target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore', weight: weights.recordableIncidents, isIncident: true, lowerIsBetter: false, rateMultiplier: 200_000 }, // NEW
-
-      // Environment Metrics (2 pts each) - NEW
-      { target: 'wasteGeneratedTarget', actual: 'wasteGeneratedActual', score: 'wasteGeneratedScore', weight: weights.wasteGenerated, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'wasteDisposedTarget', actual: 'wasteDisposedActual', score: 'wasteDisposedScore', weight: weights.wasteDisposed, isIncident: false, lowerIsBetter: false }, // Higher is better
-      { target: 'energyConsumptionTarget', actual: 'energyConsumptionActual', score: 'energyConsumptionScore', weight: weights.energyConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'waterConsumptionTarget', actual: 'waterConsumptionActual', score: 'waterConsumptionScore', weight: weights.waterConsumption, isIncident: false, lowerIsBetter: true }, // Lower is better
-      { target: 'spillsIncidentsTarget', actual: 'spillsIncidentsActual', score: 'spillsIncidentsScore', weight: weights.spillsIncidents, isIncident: true, lowerIsBetter: false }, // Binary
-      { target: 'environmentalIncidentsTarget', actual: 'environmentalIncidentsActual', score: 'environmentalIncidentsScore', weight: weights.environmentalIncidents, isIncident: true, lowerIsBetter: false }, // Binary
-
-      // Health & Hygiene (2 pts each) - NEW
-      { target: 'healthCheckupComplianceTarget', actual: 'healthCheckupComplianceActual', score: 'healthCheckupComplianceScore', weight: weights.healthCheckupCompliance, isIncident: false, lowerIsBetter: false },
-      { target: 'waterQualityTestTarget', actual: 'waterQualityTestActual', score: 'waterQualityTestScore', weight: weights.waterQualityTest, isIncident: false, lowerIsBetter: false },
+    // Parameter key -> its target/actual/score DB fields. The scoring rule
+    // (direction), weight and rate multiplier are all looked up per key, so
+    // this list no longer carries any hardcoded scoring flags.
+    const parameters: { key: string; target: string; actual: string; score: string }[] = [
+      { key: 'manDays', target: 'manDaysTarget', actual: 'manDaysActual', score: 'manDaysScore' },
+      { key: 'safeWorkHours', target: 'safeWorkHoursTarget', actual: 'safeWorkHoursActual', score: 'safeWorkHoursScore' },
+      { key: 'safetyInduction', target: 'safetyInductionTarget', actual: 'safetyInductionActual', score: 'safetyInductionScore' },
+      { key: 'toolBoxTalk', target: 'toolBoxTalkTarget', actual: 'toolBoxTalkActual', score: 'toolBoxTalkScore' },
+      { key: 'jobSpecificTraining', target: 'jobSpecificTrainingTarget', actual: 'jobSpecificTrainingActual', score: 'jobSpecificTrainingScore' },
+      { key: 'formalSafetyInspection', target: 'formalSafetyInspectionTarget', actual: 'formalSafetyInspectionActual', score: 'formalSafetyInspectionScore' },
+      { key: 'emergencyMockDrills', target: 'emergencyMockDrillsTarget', actual: 'emergencyMockDrillsActual', score: 'emergencyMockDrillsScore' },
+      { key: 'internalAudit', target: 'internalAuditTarget', actual: 'internalAuditActual', score: 'internalAuditScore' },
+      { key: 'safetyObservationRaised', target: 'safetyObservationRaisedTarget', actual: 'safetyObservationRaisedActual', score: 'safetyObservationRaisedScore' },
+      { key: 'workforceTrainedPercent', target: 'workforceTrainedTarget', actual: 'workforceTrainedActual', score: 'workforceTrainedScore' },
+      { key: 'ppeObservations', target: 'ppeObservationsTarget', actual: 'ppeObservationsActual', score: 'ppeObservationsScore' },
+      { key: 'upcomingTrainings', target: 'upcomingTrainingsTarget', actual: 'upcomingTrainingsActual', score: 'upcomingTrainingsScore' },
+      { key: 'nonComplianceClose', target: 'nonComplianceCloseTarget', actual: 'nonComplianceCloseActual', score: 'nonComplianceCloseScore' },
+      { key: 'safetyObservationClose', target: 'safetyObservationCloseTarget', actual: 'safetyObservationCloseActual', score: 'safetyObservationCloseScore' },
+      { key: 'workPermitIssued', target: 'workPermitIssuedTarget', actual: 'workPermitIssuedActual', score: 'workPermitIssuedScore' },
+      { key: 'safeWorkMethodStatement', target: 'safeWorkMethodStatementTarget', actual: 'safeWorkMethodStatementActual', score: 'safeWorkMethodStatementScore' },
+      { key: 'ppeComplianceRate', target: 'ppeComplianceRateTarget', actual: 'ppeComplianceRateActual', score: 'ppeComplianceRateScore' },
+      { key: 'nonComplianceRaised', target: 'nonComplianceRaisedTarget', actual: 'nonComplianceRaisedActual', score: 'nonComplianceRaisedScore' },
+      { key: 'overdueTrainings', target: 'overdueTrainingsTarget', actual: 'overdueTrainingsActual', score: 'overdueTrainingsScore' },
+      { key: 'nearMissReport', target: 'nearMissReportTarget', actual: 'nearMissReportActual', score: 'nearMissReportScore' },
+      { key: 'firstAidInjury', target: 'firstAidInjuryTarget', actual: 'firstAidInjuryActual', score: 'firstAidInjuryScore' },
+      { key: 'medicalTreatmentInjury', target: 'medicalTreatmentInjuryTarget', actual: 'medicalTreatmentInjuryActual', score: 'medicalTreatmentInjuryScore' },
+      { key: 'lostTimeInjury', target: 'lostTimeInjuryTarget', actual: 'lostTimeInjuryActual', score: 'lostTimeInjuryScore' },
+      { key: 'recordableIncidents', target: 'recordableIncidentsTarget', actual: 'recordableIncidentsActual', score: 'recordableIncidentsScore' },
+      { key: 'wasteGenerated', target: 'wasteGeneratedTarget', actual: 'wasteGeneratedActual', score: 'wasteGeneratedScore' },
+      { key: 'wasteDisposed', target: 'wasteDisposedTarget', actual: 'wasteDisposedActual', score: 'wasteDisposedScore' },
+      { key: 'energyConsumption', target: 'energyConsumptionTarget', actual: 'energyConsumptionActual', score: 'energyConsumptionScore' },
+      { key: 'waterConsumption', target: 'waterConsumptionTarget', actual: 'waterConsumptionActual', score: 'waterConsumptionScore' },
+      { key: 'spillsIncidents', target: 'spillsIncidentsTarget', actual: 'spillsIncidentsActual', score: 'spillsIncidentsScore' },
+      { key: 'environmentalIncidents', target: 'environmentalIncidentsTarget', actual: 'environmentalIncidentsActual', score: 'environmentalIncidentsScore' },
+      { key: 'healthCheckupCompliance', target: 'healthCheckupComplianceTarget', actual: 'healthCheckupComplianceActual', score: 'healthCheckupComplianceScore' },
+      { key: 'waterQualityTest', target: 'waterQualityTestTarget', actual: 'waterQualityTestActual', score: 'waterQualityTestScore' },
     ];
 
     // Man-hours worked, used to normalize LTIFR/TRIR-style rate-based
-    // parameters below — falls back to the plain per-count decay formula
-    // when this is missing or zero.
+    // parameters — falls back to the plain per-count decay when missing.
     const hoursWorked = Number(data.safeWorkHoursActual) || 0;
 
-    // Process each parameter
-    parameters.forEach(({ target, actual, score, weight, isIncident, lowerIsBetter, blankTargetAwardsFullCredit, leadingIndicator, rateMultiplier }) => {
+    parameters.forEach(({ key, target, actual, score }) => {
       if (data[target] !== undefined && data[actual] !== undefined) {
+        const weight = weights[key];
+        const direction = directions[key] || this.DIRECTION_DEFAULTS[key] || 'higher';
         const targetVal = Number(data[target]) || 0;
         const actualVal = Number(data[actual]) || 0;
 
         processedData[target] = targetVal;
         processedData[actual] = actualVal;
 
-        // Calculate weighted score but store as 0-10 for DB compatibility
         const weightedScore = this.calculateParameterScore(
           targetVal,
           actualVal,
           weight,
-          isIncident,
-          lowerIsBetter,
-          blankTargetAwardsFullCredit,
-          leadingIndicator,
-          rateMultiplier,
+          direction,
+          this.RATE_MULTIPLIER[key],
           hoursWorked
         );
-        // Convert back to 0-10 scale for storage (will be converted back when calculating total)
+        // Stored 0-10 for DB compatibility (converted back when totalling).
         processedData[score] = (weightedScore / weight) * 10;
       }
     });

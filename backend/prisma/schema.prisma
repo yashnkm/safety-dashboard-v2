@@ -362,6 +362,16 @@ model CompanySettings {
   ratingLowMax    Decimal @default(50.0) @map("rating_low_max") @db.Decimal(5, 2)
   ratingMediumMax Decimal @default(80.0) @map("rating_medium_max") @db.Decimal(5, 2)
 
+  // Per-parameter scoring direction overrides: { paramKey: direction }.
+  // Empty = use the hardcoded DIRECTION_DEFAULTS. JSON keeps this from adding
+  // another 32 columns alongside the weight/target columns above.
+  scoringDirections Json @default("{}") @map("scoring_directions")
+
+  // Per-parameter status label cutoffs (Excellent / Good). These affect the
+  // status label + colour only, not the underlying score. Default 90 / 70.
+  statusExcellentAt Decimal @default(90.0) @map("status_excellent_at") @db.Decimal(5, 2)
+  statusGoodAt      Decimal @default(70.0) @map("status_good_at") @db.Decimal(5, 2)
+
   // Metadata
   updatedBy String?   @map("updated_by")
   createdAt DateTime  @default(now()) @map("created_at")
