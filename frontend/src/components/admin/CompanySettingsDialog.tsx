@@ -82,9 +82,28 @@ const WEIGHT_GROUPS: { title: string; params: { key: string; label: string }[] }
   },
 ];
 
+// Plain-language labels for the six scoring directions. Keys must match the
+// backend ScoreDirection enum exactly.
+const DIRECTION_OPTIONS: { value: string; label: string }[] = [
+  { value: 'higher', label: 'Higher is better (Actual ÷ Target)' },
+  { value: 'higherActivity', label: 'Leading — any activity scores full' },
+  { value: 'lower', label: 'Lower is better (Target ÷ Actual)' },
+  { value: 'zeroDecay', label: 'Target 0 — penalise each occurrence' },
+  { value: 'zeroLeading', label: 'Target 0 — never penalised (encourage reporting)' },
+  { value: 'rate', label: 'Incident rate (per hours worked)' },
+];
+
+const DIRECTION_LABEL: Record<string, string> = Object.fromEntries(
+  DIRECTION_OPTIONS.map((o) => [o.value, o.label])
+);
+
 export default function CompanySettingsDialog({ isOpen, onClose, company }: Props) {
   const queryClient = useQueryClient();
   const [weights, setWeights] = useState<Record<string, number>>({});
+  const [directions, setDirections] = useState<Record<string, string>>({});
+  const [directionDefaults, setDirectionDefaults] = useState<Record<string, string>>({});
+  const [excellentAt, setExcellentAt] = useState<number>(90);
+  const [goodAt, setGoodAt] = useState<number>(70);
   const [isCustom, setIsCustom] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -96,21 +115,28 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
 
   useEffect(() => {
     if (settingsResponse?.data) {
-      setWeights(settingsResponse.data.weights);
-      setIsCustom(settingsResponse.data.isCustom);
+      const d = settingsResponse.data;
+      setWeights(d.weights);
+      setDirections(d.directions ?? {});
+      setDirectionDefaults(d.directionDefaults ?? {});
+      setExcellentAt(Number(d.excellentAt ?? 90));
+      setGoodAt(Number(d.goodAt ?? 70));
+      setIsCustom(d.isCustom);
       setSaveError('');
     }
   }, [settingsResponse]);
 
   const saveMutation = useMutation({
-    mutationFn: (newWeights: Record<string, number>) =>
-      adminService.updateCompanySettings(company!.id, newWeights),
+    mutationFn: () =>
+      adminService.updateCompanySettings(company!.id, weights, { directions, excellentAt, goodAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-settings', company?.id] });
+      // Scores/labels across the dashboard depend on this config — drop cached metrics.
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
       onClose();
     },
     onError: (err: any) => {
-      setSaveError(err.response?.data?.message || 'Failed to save weights');
+      setSaveError(err.response?.data?.message || 'Failed to save settings');
     },
   });
 
@@ -119,8 +145,13 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
     setWeights((prev) => ({ ...prev, [key]: Number.isFinite(num) ? num : 0 }));
   };
 
+  const handleDirectionChange = (key: string, value: string) => {
+    setDirections((prev) => ({ ...prev, [key]: value }));
+  };
+
   const sum = Object.values(weights).reduce((a, b) => a + b, 0);
   const isValidSum = Math.abs(sum - 100) < 0.5;
+  const isValidCutoffs = goodAt > 0 && goodAt < excellentAt && excellentAt <= 100;
 
   const handleSave = () => {
     setSaveError('');
@@ -128,7 +159,11 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
       setSaveError(`Weights must sum to 100 — currently ${sum.toFixed(2)}`);
       return;
     }
-    saveMutation.mutate(weights);
+    if (!isValidCutoffs) {
+      setSaveError('Status cutoffs must satisfy 0 < Good < Excellent ≤ 100');
+      return;
+    }
+    saveMutation.mutate();
   };
 
   const handleResetToDefaults = () => {
@@ -145,9 +180,9 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-xl font-bold">Parameter Weights</h2>
+            <h2 className="text-xl font-bold">Scoring Settings</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {company.companyName} — {isCustom ? 'custom weights configured' : 'using platform defaults'}
+              {company.companyName} — {isCustom ? 'custom settings configured' : 'using platform defaults'}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -156,25 +191,92 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
         </div>
 
         {isLoading ? (
-          <div className="p-12 text-center text-gray-500">Loading weights...</div>
+          <div className="p-12 text-center text-gray-500">Loading settings...</div>
         ) : (
           <div className="p-6 space-y-6">
+            {/* Status label cutoffs */}
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+              <h3 className="text-sm font-semibold text-gray-700">Status Label Cutoffs</h3>
+              <p className="text-xs text-gray-500 mt-0.5 mb-3">
+                Achievement % thresholds that set the Excellent / Good / Needs Attention labels and
+                colours. These affect the labels only, not the underlying scores.
+              </p>
+              <div className="grid grid-cols-2 gap-3 max-w-sm">
+                <div>
+                  <Label className="text-xs text-gray-500">Excellent ≥ (%)</Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    value={excellentAt}
+                    onChange={(e) =>
+                      setExcellentAt(e.target.value === '' ? 0 : parseFloat(e.target.value))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Good ≥ (%)</Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    value={goodAt}
+                    onChange={(e) => setGoodAt(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  />
+                </div>
+              </div>
+              {!isValidCutoffs && (
+                <p className="text-xs text-red-600 mt-2">
+                  Must satisfy 0 &lt; Good &lt; Excellent ≤ 100.
+                </p>
+              )}
+            </div>
+
             {WEIGHT_GROUPS.map((group) => (
               <div key={group.title}>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">{group.title}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {group.params.map(({ key, label }) => (
-                    <div key={key}>
-                      <Label className="text-xs text-gray-500">{label}</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={weights[key] ?? 0}
-                        onChange={(e) => handleWeightChange(key, e.target.value)}
-                      />
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {group.params.map(({ key, label }) => {
+                    const dir = directions[key] ?? directionDefaults[key] ?? 'higher';
+                    const isDefaultDir = dir === (directionDefaults[key] ?? 'higher');
+                    return (
+                      <div
+                        key={key}
+                        className="grid grid-cols-1 md:grid-cols-[1fr_auto_5rem] gap-2 md:items-end"
+                      >
+                        <div>
+                          <Label className="text-xs text-gray-500">{label}</Label>
+                          <select
+                            value={dir}
+                            onChange={(e) => handleDirectionChange(key, e.target.value)}
+                            className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            title={DIRECTION_LABEL[dir]}
+                          >
+                            {DIRECTION_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="hidden md:block text-[11px] text-gray-400 pb-2.5 self-center">
+                          {isDefaultDir ? 'default' : 'customised'}
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-500">Weight</Label>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={weights[key] ?? 0}
+                            onChange={(e) => handleWeightChange(key, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -184,7 +286,7 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
         <div className="p-6 border-t bg-gray-50 sticky bottom-0 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">
-              Total:{' '}
+              Weights Total:{' '}
               <span className={isValidSum ? 'text-green-600' : 'text-red-600'}>
                 {sum.toFixed(2)} / 100
               </span>
@@ -207,14 +309,18 @@ export default function CompanySettingsDialog({ isOpen, onClose, company }: Prop
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleSave} disabled={saveMutation.isPending || !isValidSum}>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saveMutation.isPending || !isValidSum || !isValidCutoffs}
+            >
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Saving...
                 </>
               ) : (
-                'Save Weights'
+                'Save Settings'
               )}
             </Button>
           </div>

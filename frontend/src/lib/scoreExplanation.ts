@@ -50,6 +50,53 @@ export const SCORE_METHOD: Record<string, ScoreMethod> = {
   'Water Quality Test': 'ratio',
 };
 
+// Maps a card title to the backend parameter key, so a company's customised
+// direction (keyed by param key) can override the default title-based method.
+const TITLE_TO_KEY: Record<string, string> = {
+  'Man Days': 'manDays',
+  'Safe Work Hours Cumulative': 'safeWorkHours',
+  'Safety Induction': 'safetyInduction',
+  'Tool Box Talk': 'toolBoxTalk',
+  'Job Specific Training': 'jobSpecificTraining',
+  'Workforce Trained %': 'workforceTrainedPercent',
+  'Upcoming Trainings': 'upcomingTrainings',
+  'Overdue Trainings': 'overdueTrainings',
+  'Formal Safety Inspection Done': 'formalSafetyInspection',
+  'Non-Compliance Raised': 'nonComplianceRaised',
+  'Non-Compliance Close': 'nonComplianceClose',
+  'Safety Observation Raised': 'safetyObservationRaised',
+  'Safety Observation Close': 'safetyObservationClose',
+  'Work Permit Issued': 'workPermitIssued',
+  'Safe Work Method Statement': 'safeWorkMethodStatement',
+  'Emergency Preparedness Mock Drills': 'emergencyMockDrills',
+  'Internal Audit': 'internalAudit',
+  'Near Miss Report': 'nearMissReport',
+  'First Aid Injury': 'firstAidInjury',
+  'Medical Treatment Injury': 'medicalTreatmentInjury',
+  'Lost Time Injury': 'lostTimeInjury',
+  'Recordable Incidents': 'recordableIncidents',
+  'PPE Compliance Rate': 'ppeComplianceRate',
+  'PPE Observations': 'ppeObservations',
+  'Waste Generated': 'wasteGenerated',
+  'Waste Disposed': 'wasteDisposed',
+  'Energy Consumption': 'energyConsumption',
+  'Water Consumption': 'waterConsumption',
+  'Spills Incidents': 'spillsIncidents',
+  'Environmental Incidents': 'environmentalIncidents',
+  'Health Checkup Compliance': 'healthCheckupCompliance',
+  'Water Quality Test': 'waterQualityTest',
+};
+
+// Backend ScoreDirection enum → the display method it corresponds to.
+const DIRECTION_TO_METHOD: Record<string, ScoreMethod> = {
+  higher: 'ratio',
+  higherActivity: 'blankFullCredit',
+  lower: 'lowerIsBetter',
+  zeroDecay: 'incidentCount',
+  zeroLeading: 'incidentLeading',
+  rate: 'incidentRate',
+};
+
 export interface ScoreExplanation {
   method: string; // short name of the rule
   formula: string; // the formula/rule in words
@@ -66,8 +113,18 @@ interface ExplainInput {
   isIncident?: boolean;
 }
 
-export function scoreExplanationFor(p: ExplainInput): ScoreExplanation {
-  const method = SCORE_METHOD[p.title] || 'ratio';
+/**
+ * Describe how a parameter was scored. `directions` (optional) is the backend's
+ * active per-company direction map (paramKey → direction); when it overrides a
+ * parameter, the explanation reflects the customised rule rather than the
+ * hardcoded default.
+ */
+export function scoreExplanationFor(
+  p: ExplainInput,
+  directions?: Record<string, string>
+): ScoreExplanation {
+  const activeDir = directions?.[TITLE_TO_KEY[p.title]];
+  const method = (activeDir && DIRECTION_TO_METHOD[activeDir]) || SCORE_METHOD[p.title] || 'ratio';
   const notReported = !p.isIncident && p.target === 0 && p.actual === 0;
   const u = p.unit ? ' ' + p.unit : '';
   const t = p.target.toLocaleString();

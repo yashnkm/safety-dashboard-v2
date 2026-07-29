@@ -727,6 +727,16 @@ export default function Dashboard() {
 
   const rawDisplayData = processMetricsData();
 
+  // Company-configurable scoring config, echoed back on the metrics payload
+  // (Phase 1 backend change). Status label cutoffs default to 90/70; the
+  // active per-parameter directions drive the "how was this scored?" copy.
+  const activeMetric = metricsData && metricsData.length > 0 ? (metricsData[0] as any) : null;
+  const statusCutoffs = {
+    excellentAt: Number(activeMetric?.excellentAt ?? 90),
+    goodAt: Number(activeMetric?.goodAt ?? 70),
+  };
+  const activeDirections: Record<string, string> | undefined = activeMetric?.directions;
+
   // Enrich each card param with (a) a "how was this scored?" explanation
   // (always), and (b) a month-over-month trend (Monthly view only — combined
   // periods have no clean "previous").
@@ -744,7 +754,7 @@ export default function Dashboard() {
         cat,
         (params as any[]).map((p) => {
           const isNR = !p.isIncident && p.target === 0 && p.actual === 0;
-          const out: any = { ...p, explanation: scoreExplanationFor(p) };
+          const out: any = { ...p, explanation: scoreExplanationFor(p, activeDirections) };
           if (prevMap && !isNR) {
             const pv = prevMap.get(p.title);
             if (pv && !pv.notReported) out.trend = { delta: p.score - pv.score };
@@ -994,6 +1004,8 @@ export default function Dashboard() {
             rating: cumulativeScore.rating,
             completeness: dataCompleteness,
             categories,
+            excellentAt: statusCutoffs.excellentAt,
+            goodAt: statusCutoffs.goodAt,
           },
           mode,
           fileName
@@ -1273,6 +1285,8 @@ export default function Dashboard() {
               data={prepareBarChartData()}
               title="KPI Parameters Achievement"
               subtitle={`Performance Overview - ${periodLabel(periodSelection)}`}
+              excellentAt={statusCutoffs.excellentAt}
+              goodAt={statusCutoffs.goodAt}
             />
           </>
         )}
@@ -1286,7 +1300,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.operational.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1301,7 +1315,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.training.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1316,7 +1330,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.compliance.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1331,7 +1345,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.documentation.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1346,7 +1360,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.emergency.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1361,7 +1375,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.incidents.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1376,7 +1390,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.ppe.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1391,7 +1405,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.environment.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>
@@ -1406,7 +1420,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayData.health.map((param, idx) => (
-                <ParameterCard key={idx} {...param} />
+                <ParameterCard key={idx} {...param} excellentAt={statusCutoffs.excellentAt} goodAt={statusCutoffs.goodAt} />
               ))}
             </div>
           </section>

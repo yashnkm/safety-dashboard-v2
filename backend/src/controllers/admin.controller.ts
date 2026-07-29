@@ -98,7 +98,7 @@ export class AdminController {
    */
   async updateCompanySettings(req: AuthRequest, res: Response) {
     const { id } = req.params;
-    const { weights } = req.body;
+    const { weights, directions, excellentAt, goodAt } = req.body;
 
     if (!weights || typeof weights !== 'object') {
       throw new AppError(400, 'weights object is required');
@@ -109,7 +109,8 @@ export class AdminController {
       weights,
       req.user!.companyId,
       req.user!.role,
-      req.user!.id
+      req.user!.id,
+      { directions, excellentAt, goodAt }
     );
     res.json({
       status: 'success',

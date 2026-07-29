@@ -1,7 +1,7 @@
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { cleanupOrphanedLogos } from './logoCleanup.service';
-import { safetyMetricsService } from './safetyMetrics.service';
+import { safetyMetricsService, SCORE_DIRECTIONS, ScoreDirection } from './safetyMetrics.service';
 import { auditLogService } from './auditLog.service';
 import bcrypt from 'bcrypt';
 
@@ -100,9 +100,18 @@ export class AdminService {
 
     const settings = await prisma.companySettings.findUnique({ where: { companyId } });
     const fieldMap = safetyMetricsService.getWeightFieldMap();
+    const config = await safetyMetricsService.getCompanyScoringConfig(companyId);
+
+    const base = {
+      companyId,
+      directions: config.directions,
+      directionDefaults: safetyMetricsService.getDirectionDefaults(),
+      excellentAt: config.excellentAt,
+      goodAt: config.goodAt,
+    };
 
     if (!settings) {
-      return { companyId, isCustom: false, weights: safetyMetricsService.getDefaultWeights() };
+      return { ...base, isCustom: false, weights: safetyMetricsService.getDefaultWeights() };
     }
 
     const weights: Record<string, number> = {};
@@ -110,7 +119,7 @@ export class AdminService {
       weights[paramKey] = Number((settings as any)[dbField]);
     }
 
-    return { companyId, isCustom: true, weights, updatedAt: settings.updatedAt };
+    return { ...base, isCustom: true, weights, updatedAt: settings.updatedAt };
   }
 
   async updateCompanySettings(
@@ -118,7 +127,8 @@ export class AdminService {
     weights: Record<string, number>,
     callerCompanyId: string,
     callerRole: string,
-    userId: string
+    userId: string,
+    options?: { directions?: Record<string, string>; excellentAt?: number; goodAt?: number }
   ) {
     if (callerRole !== 'SUPER_ADMIN' && companyId !== callerCompanyId) {
       throw new AppError(403, 'Access denied to this company');
@@ -130,7 +140,7 @@ export class AdminService {
     }
 
     const fieldMap = safetyMetricsService.getWeightFieldMap();
-    const dbData: Record<string, number> = {};
+    const dbData: Record<string, any> = {};
     let sum = 0;
 
     for (const [paramKey, dbField] of fieldMap) {
@@ -145,6 +155,31 @@ export class AdminService {
     // Small tolerance for rounding, not for genuinely mis-entered totals.
     if (Math.abs(sum - 100) > 0.5) {
       throw new AppError(400, `Parameter weights must sum to 100 (currently ${sum.toFixed(2)})`);
+    }
+
+    // Optional per-parameter scoring directions.
+    if (options?.directions) {
+      const validKeys = new Set(safetyMetricsService.getParameterKeys());
+      const cleaned: Record<string, ScoreDirection> = {};
+      for (const [key, dir] of Object.entries(options.directions)) {
+        if (!validKeys.has(key)) throw new AppError(400, `Unknown parameter "${key}"`);
+        if (!SCORE_DIRECTIONS.includes(dir as ScoreDirection)) {
+          throw new AppError(400, `Invalid direction "${dir}" for "${key}"`);
+        }
+        cleaned[key] = dir as ScoreDirection;
+      }
+      dbData.scoringDirections = cleaned;
+    }
+
+    // Optional status-label cutoffs.
+    if (options?.excellentAt !== undefined || options?.goodAt !== undefined) {
+      const ex = Number(options.excellentAt);
+      const gd = Number(options.goodAt);
+      if (!Number.isFinite(ex) || !Number.isFinite(gd) || !(gd > 0 && gd < ex && ex <= 100)) {
+        throw new AppError(400, 'Status cutoffs must satisfy 0 < Good < Excellent ≤ 100');
+      }
+      dbData.statusExcellentAt = ex;
+      dbData.statusGoodAt = gd;
     }
 
     return await prisma.companySettings.upsert({

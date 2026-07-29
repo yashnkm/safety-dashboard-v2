@@ -11,60 +11,69 @@ interface ParametersBarChartProps {
   data: ParameterData[];
   title: string;
   subtitle?: string;
+  // Company-configurable status label cutoffs (Achievement %). Default 90/70.
+  excellentAt?: number;
+  goodAt?: number;
 }
 
-// Custom tooltip
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-
-    if (data.notReported) {
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-1">{data.name}</p>
-          <p className="text-sm font-medium text-gray-500">Not Reported — no data entered</p>
-        </div>
-      );
-    }
-
-    const percentage = data.percentage;
-    return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-        <p className="font-semibold text-gray-900 mb-2">{data.name}</p>
-        <p className={`text-sm font-semibold ${
-          percentage >= 90 ? 'text-green-600' :
-          percentage >= 70 ? 'text-yellow-600' :
-          'text-red-600'
-        }`}>
-          Achievement: {percentage.toFixed(1)}%
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-// Get bar color based on percentage
-const getBarColor = (percentage: number) => {
-  if (percentage >= 90) return '#10b981'; // green
-  if (percentage >= 70) return '#f59e0b'; // yellow
+// Get bar color based on percentage and the company's status cutoffs
+const getBarColor = (percentage: number, excellentAt: number, goodAt: number) => {
+  if (percentage >= excellentAt) return '#10b981'; // green
+  if (percentage >= goodAt) return '#f59e0b'; // yellow
   return '#ef4444'; // red
 };
 
-// Custom bar: normal coloured bar for reported params; for "not reported"
-// params (which would otherwise be an invisible 0% bar, indistinguishable
-// from a genuine failure) draw a small grey marker at the baseline instead.
-const renderBar = (props: any) => {
-  const { x, y, width, height, payload } = props;
-  if (payload.notReported) {
-    const stub = 6;
-    return <rect x={x} y={y - stub} width={width} height={stub} fill="#d1d5db" rx={1} />;
-  }
-  return <rect x={x} y={y} width={width} height={height} rx={4} ry={4} fill={getBarColor(payload.percentage)} />;
-};
-
-export default function ParametersBarChart({ data, title, subtitle }: ParametersBarChartProps) {
+export default function ParametersBarChart({
+  data,
+  title,
+  subtitle,
+  excellentAt = 90,
+  goodAt = 70,
+}: ParametersBarChartProps) {
   const hasNotReported = data.some((d) => d.notReported);
+
+  // Custom tooltip — closes over the company cutoffs for the colour band.
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+
+      if (d.notReported) {
+        return (
+          <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+            <p className="font-semibold text-gray-900 mb-1">{d.name}</p>
+            <p className="text-sm font-medium text-gray-500">Not Reported — no data entered</p>
+          </div>
+        );
+      }
+
+      const percentage = d.percentage;
+      return (
+        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+          <p className="font-semibold text-gray-900 mb-2">{d.name}</p>
+          <p className={`text-sm font-semibold ${
+            percentage >= excellentAt ? 'text-green-600' :
+            percentage >= goodAt ? 'text-yellow-600' :
+            'text-red-600'
+          }`}>
+            Achievement: {percentage.toFixed(1)}%
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom bar: normal coloured bar for reported params; for "not reported"
+  // params (which would otherwise be an invisible 0% bar, indistinguishable
+  // from a genuine failure) draw a small grey marker at the baseline instead.
+  const renderBar = (props: any) => {
+    const { x, y, width, height, payload } = props;
+    if (payload.notReported) {
+      const stub = 6;
+      return <rect x={x} y={y - stub} width={width} height={stub} fill="#d1d5db" rx={1} />;
+    }
+    return <rect x={x} y={y} width={width} height={height} rx={4} ry={4} fill={getBarColor(payload.percentage, excellentAt, goodAt)} />;
+  };
 
   return (
     <Card className="border-0 shadow-lg">

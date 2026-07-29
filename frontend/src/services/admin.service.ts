@@ -161,8 +161,17 @@ export const adminService = {
     return response.data;
   },
 
-  updateCompanySettings: async (companyId: string, weights: Record<string, number>) => {
-    const response = await api.put(`/admin/companies/${companyId}/settings`, { weights });
+  updateCompanySettings: async (
+    companyId: string,
+    weights: Record<string, number>,
+    options?: { directions?: Record<string, string>; excellentAt?: number; goodAt?: number }
+  ) => {
+    const response = await api.put(`/admin/companies/${companyId}/settings`, {
+      weights,
+      directions: options?.directions,
+      excellentAt: options?.excellentAt,
+      goodAt: options?.goodAt,
+    });
     return response.data;
   },
 

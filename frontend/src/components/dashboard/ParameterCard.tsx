@@ -19,6 +19,9 @@ interface ParameterCardProps {
   trend?: { delta: number };
   // "How was this scored?" drill-down: the rule + the actual numbers.
   explanation?: { method: string; formula: string; calc: string };
+  // Company-configurable status label cutoffs (Achievement %). Default 90/70.
+  excellentAt?: number;
+  goodAt?: number;
 }
 
 export default function ParameterCard({
@@ -32,6 +35,8 @@ export default function ParameterCard({
   isIncident = false,
   trend,
   explanation,
+  excellentAt = 90,
+  goodAt = 70,
 }: ParameterCardProps) {
   const [showHow, setShowHow] = useState(false);
   // How many of this parameter's points were actually earned toward the
@@ -48,8 +53,8 @@ export default function ParameterCard({
   // Determine status based on score
   const getStatus = () => {
     if (isNotReported) return { label: 'Not Reported', color: 'bg-gray-100 text-gray-500 border-gray-300' };
-    if (score >= 90) return { label: 'Excellent', color: 'bg-green-100 text-green-700 border-green-300' };
-    if (score >= 70) return { label: 'Good', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' };
+    if (score >= excellentAt) return { label: 'Excellent', color: 'bg-green-100 text-green-700 border-green-300' };
+    if (score >= goodAt) return { label: 'Good', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' };
     return { label: 'Needs Attention', color: 'bg-red-100 text-red-700 border-red-300' };
   };
 
@@ -61,8 +66,8 @@ export default function ParameterCard({
   // stay in lockstep with the status badge above.
   const getAccentColor = () => {
     if (isNotReported) return '#9ca3af'; // gray-400
-    if (score >= 90) return '#16a34a'; // green-600
-    if (score >= 70) return '#ca8a04'; // yellow-600
+    if (score >= excellentAt) return '#16a34a'; // green-600
+    if (score >= goodAt) return '#ca8a04'; // yellow-600
     return '#dc2626'; // red-600
   };
   const accent = getAccentColor();

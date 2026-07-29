@@ -26,6 +26,9 @@ export interface ReportOptions {
   completeness?: { reported: number; total: number; adjustedPercentage: number | null } | null;
   // Category key -> ordered params, in display order.
   categories: { key: string; label: string; params: ReportParam[] }[];
+  // Company-configurable status label cutoffs (Achievement %). Default 90/70.
+  excellentAt?: number;
+  goodAt?: number;
 }
 
 // ---- palette -------------------------------------------------------------
@@ -44,10 +47,10 @@ const ratingColor = (r: string): [number, number, number] =>
 function isNotReported(p: ReportParam) {
   return !p.isIncident && p.target === 0 && p.actual === 0;
 }
-function statusOf(p: ReportParam): string {
+function statusOf(p: ReportParam, excellentAt = 90, goodAt = 70): string {
   if (isNotReported(p)) return 'Not Reported';
-  if (p.score >= 90) return 'Excellent';
-  if (p.score >= 70) return 'Good';
+  if (p.score >= excellentAt) return 'Excellent';
+  if (p.score >= goodAt) return 'Good';
   return 'Needs Attention';
 }
 function statusColor(s: string): [number, number, number] {
@@ -217,9 +220,11 @@ function drawExecSummary(doc: jsPDF, opts: ReportOptions, pageW: number, marginX
   y = doc.lastAutoTable.finalY + 26;
 
   // Highlights: needs attention & top performers
+  const ex = opts.excellentAt ?? 90;
+  const gd = opts.goodAt ?? 70;
   const allParams = opts.categories.flatMap((c) => c.params);
-  const needs = allParams.filter((p) => !isNotReported(p) && p.score < 70).sort((a, b) => a.score - b.score);
-  const top = allParams.filter((p) => !isNotReported(p) && p.score >= 90);
+  const needs = allParams.filter((p) => !isNotReported(p) && p.score < gd).sort((a, b) => a.score - b.score);
+  const top = allParams.filter((p) => !isNotReported(p) && p.score >= ex);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
@@ -230,7 +235,7 @@ function drawExecSummary(doc: jsPDF, opts: ReportOptions, pageW: number, marginX
   doc.setFontSize(10);
   doc.setTextColor(...INK);
   if (needs.length === 0) {
-    doc.text('None — every reported parameter met at least 70% achievement.', marginX, y);
+    doc.text(`None — every reported parameter met at least ${gd}% achievement.`, marginX, y);
     y += 16;
   } else {
     for (const p of needs.slice(0, 8)) {
@@ -252,7 +257,7 @@ function drawExecSummary(doc: jsPDF, opts: ReportOptions, pageW: number, marginX
   doc.setFontSize(10);
   doc.setTextColor(...INK);
   if (top.length === 0) {
-    doc.text('No parameters reached the Excellent threshold (90%+) this period.', marginX, y);
+    doc.text(`No parameters reached the Excellent threshold (${ex}%+) this period.`, marginX, y);
   } else {
     const names = top.map((p) => p.title).slice(0, 12).join(', ');
     const tl = doc.splitTextToSize(names + (top.length > 12 ? ', …' : ''), pageW - marginX * 2 - 12);
@@ -279,7 +284,7 @@ function drawDetail(doc: jsPDF, opts: ReportOptions, marginX: number) {
       margin: { left: marginX, right: marginX },
       head: [[cat.label, 'Target', 'Actual', 'Achievement', 'Points', 'Status']],
       body: cat.params.map((p) => {
-        const s = statusOf(p);
+        const s = statusOf(p, opts.excellentAt ?? 90, opts.goodAt ?? 70);
         return [
           p.title,
           `${num(p.target)}${p.unit ? ' ' + p.unit : ''}`,
