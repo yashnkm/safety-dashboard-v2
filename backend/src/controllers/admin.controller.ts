@@ -208,7 +208,7 @@ export class AdminController {
       ? data.companyId
       : req.user!.companyId;
 
-    const user = await adminService.createUser({ ...data, companyId });
+    const user = await adminService.createUser({ ...data, companyId }, req.user!.role);
     res.status(201).json({
       status: 'success',
       data: user,

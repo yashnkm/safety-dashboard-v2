@@ -330,7 +330,26 @@ export class AdminService {
     });
   }
 
-  async createUser(data: any) {
+  /**
+   * Guard role assignment. Rejects unknown roles, and never lets a caller grant
+   * SUPER_ADMIN unless they already are one. Without this, a client's own ADMIN
+   * could mint a SUPER_ADMIN account and read every other client's data, since
+   * SUPER_ADMIN is the role all cross-company checks key on.
+   */
+  private assertRoleAssignable(role: string | undefined, callerRole: string) {
+    if (role === undefined || role === null) return; // no role change requested
+    const VALID_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'VIEWER'];
+    if (!VALID_ROLES.includes(role)) {
+      throw new AppError(400, `Invalid role "${role}"`);
+    }
+    if (role === 'SUPER_ADMIN' && callerRole !== 'SUPER_ADMIN') {
+      throw new AppError(403, 'Only a SUPER_ADMIN can grant the SUPER_ADMIN role');
+    }
+  }
+
+  async createUser(data: any, callerRole: string) {
+    this.assertRoleAssignable(data.role, callerRole);
+
     // Verify company exists
     const company = await prisma.company.findUnique({
       where: { id: data.companyId },
@@ -381,6 +400,8 @@ export class AdminService {
     if (callerRole !== 'SUPER_ADMIN' && user.companyId !== callerCompanyId) {
       throw new AppError(403, 'Access denied to this user');
     }
+
+    this.assertRoleAssignable(data.role, callerRole);
 
     const updateData: any = {
       fullName: data.fullName,

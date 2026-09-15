@@ -168,6 +168,13 @@ export class DashboardController {
     const role = req.user!.role;
     const userId = req.user!.id;
 
+    // Only administrators may write metrics — mirrors the gate on
+    // bulkImportMetrics. Without this a MANAGER or VIEWER could overwrite any
+    // site's metrics in their own company directly through the API.
+    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+      throw new AppError(403, 'Only administrators can modify metrics');
+    }
+
     // Validate required fields
     if (!siteId || !month || !year) {
       throw new AppError(400, 'siteId, month, and year are required');
