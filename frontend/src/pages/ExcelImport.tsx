@@ -314,6 +314,13 @@ export default function ExcelImport() {
                 <p className="text-sm">
                   <strong>Success:</strong> {uploadResult.success} months imported
                 </p>
+                {uploadResult.skipped > 0 && (
+                  <p className="text-sm text-gray-600">
+                    <strong>Skipped:</strong> {uploadResult.skipped} empty month
+                    {uploadResult.skipped === 1 ? '' : 's'} — rows with no values were left
+                    untouched, so any data already saved for those months is preserved.
+                  </p>
+                )}
                 {uploadResult.failed > 0 && (
                   <>
                     <p className="text-sm text-red-600">

@@ -862,6 +862,34 @@ export class SafetyMetricsService {
   ];
 
   /**
+   * A cell the user never filled in. The Excel parser emits '' (not undefined)
+   * for empty cells, so '' must be treated as "no data provided" rather than
+   * as the number 0 — otherwise a blank cell silently overwrites real data.
+   */
+  private isBlankValue(value: any): boolean {
+    return (
+      value === undefined ||
+      value === null ||
+      (typeof value === 'string' && value.trim() === '')
+    );
+  }
+
+  /**
+   * True if a month row carries at least one target/actual value. The yearly
+   * template always ships 12 month rows, so an un-filled month arrives as a
+   * fully blank row; importing it would overwrite a previously reported month
+   * with zeros. Such rows are skipped instead.
+   */
+  private rowHasAnyData(data: any): boolean {
+    for (const [targetField, actualField] of this.TARGET_ACTUAL_FIELDS) {
+      if (!this.isBlankValue(data[targetField]) || !this.isBlankValue(data[actualField])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Catches impossible values before they're saved — negative counts,
    * non-numeric input, or a percentage field outside 0-100. Returns a list
    * of human-readable problems; an empty list means the row is clean.
@@ -1159,6 +1187,7 @@ export class SafetyMetricsService {
     const results = {
       success: 0,
       failed: 0,
+      skipped: 0,
       errors: [] as any[],
     };
 
@@ -1175,6 +1204,14 @@ export class SafetyMetricsService {
         if (!month) {
           results.failed++;
           results.errors.push({ month: 'unknown', error: 'Month is required' });
+          continue;
+        }
+
+        // An entirely blank month row means "not reported yet", not "all
+        // zeros". Importing it would wipe a previously reported month and
+        // seed a 0%-scoring record that drags down period averages.
+        if (!this.rowHasAnyData(data)) {
+          results.skipped++;
           continue;
         }
 
@@ -1324,7 +1361,10 @@ export class SafetyMetricsService {
     const hoursWorked = Number(data.safeWorkHoursActual) || 0;
 
     parameters.forEach(({ key, target, actual, score }) => {
-      if (data[target] !== undefined && data[actual] !== undefined) {
+      // Process the pair when at least one side was actually filled in. If
+      // both are blank the parameter is left untouched, so an existing stored
+      // value survives re-import instead of being zeroed.
+      if (!this.isBlankValue(data[target]) || !this.isBlankValue(data[actual])) {
         const weight = weights[key];
         const direction = directions[key] || this.DIRECTION_DEFAULTS[key] || 'higher';
         const targetVal = Number(data[target]) || 0;

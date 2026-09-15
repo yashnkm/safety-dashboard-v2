@@ -342,6 +342,69 @@ describe('calculateAllParameterScores', () => {
     expect(processed.safeWorkHoursScore).toBeUndefined();
     expect(processed.manDaysScore).toBeCloseTo(10, 5);
   });
+
+  // Regression: the Excel parser emits '' for an empty cell, not undefined.
+  // Treating '' as the number 0 silently overwrote previously imported data.
+  it('treats blank ("") cells as no-data and leaves the parameter untouched', () => {
+    const processed = service.calculateAllParameterScores({
+      manDaysTarget: '',
+      manDaysActual: '',
+    });
+    expect(processed.manDaysScore).toBeUndefined();
+    expect(processed.manDaysTarget).toBeUndefined();
+    expect(processed.manDaysActual).toBeUndefined();
+  });
+
+  it('still scores a pair when only one side is filled in', () => {
+    const processed = service.calculateAllParameterScores({
+      manDaysTarget: 100,
+      manDaysActual: '',
+    });
+    // actual treated as 0 against a real target of 100 -> 0% achievement
+    expect(processed.manDaysScore).toBeCloseTo(0, 5);
+    expect(processed.manDaysTarget).toBe(100);
+  });
+});
+
+describe('blank month rows (import safety)', () => {
+  it('rowHasAnyData is false for a fully blank month row', () => {
+    const blankRow: Record<string, string> = {};
+    for (const [t, a] of service.TARGET_ACTUAL_FIELDS) {
+      blankRow[t] = '';
+      blankRow[a] = '';
+    }
+    expect(service.rowHasAnyData(blankRow)).toBe(false);
+  });
+
+  it('rowHasAnyData is true when any single value is present', () => {
+    const row: Record<string, any> = {};
+    for (const [t, a] of service.TARGET_ACTUAL_FIELDS) {
+      row[t] = '';
+      row[a] = '';
+    }
+    row.manDaysActual = 5;
+    expect(service.rowHasAnyData(row)).toBe(true);
+  });
+
+  it('treats a zero as real data, not as blank', () => {
+    const row: Record<string, any> = {};
+    for (const [t, a] of service.TARGET_ACTUAL_FIELDS) {
+      row[t] = '';
+      row[a] = '';
+    }
+    row.firstAidInjuryTarget = 0;
+    row.firstAidInjuryActual = 0;
+    expect(service.rowHasAnyData(row)).toBe(true);
+  });
+
+  it('isBlankValue distinguishes blanks from zero', () => {
+    expect(service.isBlankValue('')).toBe(true);
+    expect(service.isBlankValue('   ')).toBe(true);
+    expect(service.isBlankValue(undefined)).toBe(true);
+    expect(service.isBlankValue(null)).toBe(true);
+    expect(service.isBlankValue(0)).toBe(false);
+    expect(service.isBlankValue('0')).toBe(false);
+  });
 });
 
 describe('end-to-end: import → total score', () => {
