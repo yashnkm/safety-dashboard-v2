@@ -228,10 +228,15 @@ export class AuthService {
       const sent = await mailerService.sendPasswordResetEmail(email, resetUrl);
 
       if (!sent) {
-        // SMTP not configured, or the send failed - fall back to a server
-        // log so the flow still works in development/debugging.
-        console.log(`\n🔑 Password reset requested for ${email}`);
-        console.log(`   Reset link (valid 1 hour): ${resetUrl}\n`);
+        // SECURITY: never log the reset URL — it contains the raw, still-valid
+        // token, so anyone able to read the process logs (PM2 log files, a
+        // shipper, a support session) could take over the account within the
+        // hour. Log only that the send failed; the user simply re-requests
+        // once SMTP is healthy.
+        console.error(
+          `[auth] Password reset email failed to send for a user (SMTP unconfigured or erroring). ` +
+            `No link is logged by design; fix SMTP and ask the user to request another reset.`
+        );
       }
     }
 

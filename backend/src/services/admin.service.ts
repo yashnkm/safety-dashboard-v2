@@ -347,8 +347,30 @@ export class AdminService {
     }
   }
 
+  /**
+   * Password rules for admin-created/updated accounts. The reset flow already
+   * enforces a minimum, but this path enforced nothing — so `"password": "a"`
+   * created a real one-character account, and a missing password reached
+   * bcrypt.hash(undefined) and surfaced as a 500 instead of a clear 400.
+   * This is how every client login is provisioned, so it matters.
+   */
+  private assertValidPassword(password: unknown) {
+    if (typeof password !== 'string' || password.length === 0) {
+      throw new AppError(400, 'Password is required');
+    }
+    if (password.length < 8) {
+      throw new AppError(400, 'Password must be at least 8 characters');
+    }
+    // bcrypt only uses the first 72 bytes; cap the input so an oversized
+    // body can't be used to burn CPU.
+    if (password.length > 200) {
+      throw new AppError(400, 'Password must be at most 200 characters');
+    }
+  }
+
   async createUser(data: any, callerRole: string) {
     this.assertRoleAssignable(data.role, callerRole);
+    this.assertValidPassword(data.password);
 
     // Verify company exists
     const company = await prisma.company.findUnique({
@@ -410,8 +432,10 @@ export class AdminService {
       isActive: data.isActive,
     };
 
-    // Only update password if provided
-    if (data.password) {
+    // Only update password if provided — but when it is, hold it to the same
+    // minimum as creation and the reset flow.
+    if (data.password !== undefined && data.password !== null && data.password !== '') {
+      this.assertValidPassword(data.password);
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
     }
 
