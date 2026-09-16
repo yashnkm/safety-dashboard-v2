@@ -1,7 +1,20 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { adminService } from '../services/admin.service';
+import { adminService, AuditContext } from '../services/admin.service';
 import { AppError } from '../middleware/errorHandler';
+
+/**
+ * Who is performing this change, and from where — recorded against every
+ * administrative mutation so the audit trail names the acting admin, not the
+ * account being modified.
+ */
+function auditFrom(req: AuthRequest): AuditContext {
+  return {
+    userId: req.user!.id,
+    ipAddress: req.ip ?? null,
+    userAgent: req.get('user-agent') ?? null,
+  };
+}
 
 export class AdminController {
   // ==================== UPLOADS ====================
@@ -110,7 +123,8 @@ export class AdminController {
       req.user!.companyId,
       req.user!.role,
       req.user!.id,
-      { directions, excellentAt, goodAt }
+      { directions, excellentAt, goodAt },
+      auditFrom(req)
     );
     res.json({
       status: 'success',
@@ -208,7 +222,7 @@ export class AdminController {
       ? data.companyId
       : req.user!.companyId;
 
-    const user = await adminService.createUser({ ...data, companyId }, req.user!.role);
+    const user = await adminService.createUser({ ...data, companyId }, req.user!.role, auditFrom(req));
     res.status(201).json({
       status: 'success',
       data: user,
@@ -222,7 +236,7 @@ export class AdminController {
   async updateUser(req: AuthRequest, res: Response) {
     const { id } = req.params;
     const data = req.body;
-    const user = await adminService.updateUser(id, data, req.user!.companyId, req.user!.role);
+    const user = await adminService.updateUser(id, data, req.user!.companyId, req.user!.role, auditFrom(req));
     res.json({
       status: 'success',
       data: user,
@@ -235,7 +249,7 @@ export class AdminController {
    */
   async deleteUser(req: AuthRequest, res: Response) {
     const { id } = req.params;
-    await adminService.deleteUser(id, req.user!.companyId, req.user!.role);
+    await adminService.deleteUser(id, req.user!.companyId, req.user!.role, auditFrom(req));
     res.json({
       status: 'success',
       message: 'User deleted successfully',
@@ -254,7 +268,7 @@ export class AdminController {
       throw new AppError(400, 'siteIds must be an array');
     }
 
-    await adminService.assignSitesToUser(id, siteIds, req.user!.companyId, req.user!.role);
+    await adminService.assignSitesToUser(id, siteIds, req.user!.companyId, req.user!.role, auditFrom(req));
     res.json({
       status: 'success',
       message: 'Sites assigned successfully',

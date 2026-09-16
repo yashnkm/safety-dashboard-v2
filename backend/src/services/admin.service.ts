@@ -3,6 +3,18 @@ import { AppError } from '../middleware/errorHandler';
 import { cleanupOrphanedLogos } from './logoCleanup.service';
 import { safetyMetricsService, SCORE_DIRECTIONS, ScoreDirection } from './safetyMetrics.service';
 import { auditLogService } from './auditLog.service';
+
+/**
+ * Who performed an administrative change, and from where. Threaded from the
+ * controller so the audit trail records the acting user rather than the user
+ * being acted upon — the two are different, and only the former answers
+ * "who escalated this account?".
+ */
+export interface AuditContext {
+  userId: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
 import bcrypt from 'bcrypt';
 
 export class AdminService {
@@ -128,7 +140,8 @@ export class AdminService {
     callerCompanyId: string,
     callerRole: string,
     userId: string,
-    options?: { directions?: Record<string, string>; excellentAt?: number; goodAt?: number }
+    options?: { directions?: Record<string, string>; excellentAt?: number; goodAt?: number },
+    audit?: AuditContext
   ) {
     if (callerRole !== 'SUPER_ADMIN' && companyId !== callerCompanyId) {
       throw new AppError(403, 'Access denied to this company');
@@ -182,11 +195,42 @@ export class AdminService {
       dbData.statusGoodAt = gd;
     }
 
-    return await prisma.companySettings.upsert({
+    // Captured before the write: scoring config changes every historical score
+    // the moment they are saved (the engine recomputes on read), so being able
+    // to answer "why did last quarter's number move?" depends on having the
+    // previous weights and cutoffs recorded.
+    const previousSettings = await prisma.companySettings.findUnique({ where: { companyId } });
+
+    const saved = await prisma.companySettings.upsert({
       where: { companyId },
       update: { ...dbData, updatedBy: userId },
       create: { companyId, ...dbData, updatedBy: userId },
     });
+
+    await auditLogService.logChange({
+      companyId,
+      userId,
+      action: previousSettings ? 'settings_update' : 'settings_create',
+      entityType: 'CompanySettings',
+      entityId: saved.id,
+      oldValues: previousSettings
+        ? {
+            scoringDirections: previousSettings.scoringDirections,
+            statusExcellentAt: previousSettings.statusExcellentAt,
+            statusGoodAt: previousSettings.statusGoodAt,
+          }
+        : null,
+      newValues: {
+        weightsChanged: true,
+        scoringDirections: dbData.scoringDirections ?? null,
+        statusExcellentAt: dbData.statusExcellentAt ?? null,
+        statusGoodAt: dbData.statusGoodAt ?? null,
+      },
+      ipAddress: audit?.ipAddress,
+      userAgent: audit?.userAgent,
+    });
+
+    return saved;
   }
 
   // ==================== OBSERVABILITY ====================
@@ -427,7 +471,22 @@ export class AdminService {
     }
   }
 
-  async createUser(data: any, callerRole: string) {
+  /**
+   * Only the fields worth seeing in an audit entry. Deliberately excludes
+   * password/passwordHash — the audit service redacts those anyway, but not
+   * gathering them in the first place is the stronger guarantee.
+   */
+  private auditableUserFields(u: any) {
+    return {
+      email: u.email,
+      fullName: u.fullName,
+      role: u.role,
+      accessLevel: u.accessLevel,
+      isActive: u.isActive,
+    };
+  }
+
+  async createUser(data: any, callerRole: string, audit?: AuditContext) {
     this.assertRoleAssignable(data.role, callerRole);
     this.assertValidPassword(data.password);
 
@@ -452,7 +511,7 @@ export class AdminService {
     // Hash password
     const passwordHash = await bcrypt.hash(data.password, 10);
 
-    return await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         companyId: data.companyId,
         email: data.email,
@@ -471,9 +530,28 @@ export class AdminService {
         createdAt: true,
       },
     });
+
+    await auditLogService.logChange({
+      companyId: data.companyId,
+      userId: audit?.userId,
+      action: 'user_create',
+      entityType: 'User',
+      entityId: created.id,
+      newValues: this.auditableUserFields(created),
+      ipAddress: audit?.ipAddress,
+      userAgent: audit?.userAgent,
+    });
+
+    return created;
   }
 
-  async updateUser(id: string, data: any, callerCompanyId: string, callerRole: string) {
+  async updateUser(
+    id: string,
+    data: any,
+    callerCompanyId: string,
+    callerRole: string,
+    audit?: AuditContext
+  ) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new AppError(404, 'User not found');
@@ -509,7 +587,7 @@ export class AdminService {
       updateData.tokensValidFrom = new Date();
     }
 
-    return await prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id },
       data: updateData,
       select: {
@@ -522,9 +600,29 @@ export class AdminService {
         createdAt: true,
       },
     });
+
+    // A role change is the single most security-relevant edit here, so the
+    // before/after is recorded explicitly rather than left to be inferred.
+    // passwordChanged is a flag, never the value.
+    await auditLogService.logChange({
+      companyId: user.companyId,
+      userId: audit?.userId,
+      action: user.role !== updated.role ? 'user_role_change' : 'user_update',
+      entityType: 'User',
+      entityId: id,
+      oldValues: this.auditableUserFields(user),
+      newValues: {
+        ...this.auditableUserFields(updated),
+        passwordChanged: updateData.passwordHash !== undefined,
+      },
+      ipAddress: audit?.ipAddress,
+      userAgent: audit?.userAgent,
+    });
+
+    return updated;
   }
 
-  async deleteUser(id: string, callerCompanyId: string, callerRole: string) {
+  async deleteUser(id: string, callerCompanyId: string, callerRole: string, audit?: AuditContext) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new AppError(404, 'User not found');
@@ -534,9 +632,28 @@ export class AdminService {
     }
 
     await prisma.user.delete({ where: { id } });
+
+    // Written after the delete succeeds, and captured beforehand — otherwise
+    // the record of who existed disappears along with them.
+    await auditLogService.logChange({
+      companyId: user.companyId,
+      userId: audit?.userId,
+      action: 'user_delete',
+      entityType: 'User',
+      entityId: id,
+      oldValues: this.auditableUserFields(user),
+      ipAddress: audit?.ipAddress,
+      userAgent: audit?.userAgent,
+    });
   }
 
-  async assignSitesToUser(userId: string, siteIds: string[], callerCompanyId: string, callerRole: string) {
+  async assignSitesToUser(
+    userId: string,
+    siteIds: string[],
+    callerCompanyId: string,
+    callerRole: string,
+    audit?: AuditContext
+  ) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new AppError(404, 'User not found');
@@ -570,6 +687,13 @@ export class AdminService {
       }
     }
 
+    // Capture what they had before replacing it, so the entry shows the
+    // change rather than only the end state.
+    const previous = await prisma.userSiteAccess.findMany({
+      where: { userId },
+      select: { siteId: true },
+    });
+
     // Delete existing assignments
     await prisma.userSiteAccess.deleteMany({ where: { userId } });
 
@@ -582,6 +706,18 @@ export class AdminService {
         })),
       });
     }
+
+    await auditLogService.logChange({
+      companyId: user.companyId,
+      userId: audit?.userId,
+      action: 'user_site_access_change',
+      entityType: 'User',
+      entityId: userId,
+      oldValues: { siteIds: previous.map((p) => p.siteId) },
+      newValues: { siteIds },
+      ipAddress: audit?.ipAddress,
+      userAgent: audit?.userAgent,
+    });
   }
 
   async getUserSites(userId: string, callerCompanyId: string, callerRole: string) {

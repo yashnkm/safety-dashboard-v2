@@ -13,6 +13,28 @@ interface LogChangeParams {
   userAgent?: string | null;
 }
 
+// Keys whose values must never reach the audit table. oldValues/newValues are
+// written verbatim as JSON, so a caller passing a raw user object or request
+// body would otherwise persist a password hash — or a plaintext password — into
+// a table that is then rendered in the Admin panel. Redacting here rather than
+// at each call site means a future caller cannot reintroduce the leak by
+// forgetting to strip a field.
+const SENSITIVE_KEY = /pass(word)?|secret|token|hash|authorization|cookie/i;
+
+function redactSensitive(values: Record<string, any> | null | undefined) {
+  if (!values || typeof values !== 'object') return values ?? undefined;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(values)) {
+    // A boolean cannot carry a secret, and flags like `passwordChanged: true`
+    // are exactly the signal an audit trail exists to record — redacting them
+    // by key name would throw away the useful half of the entry while
+    // protecting nothing.
+    const sensitive = SENSITIVE_KEY.test(k) && typeof v !== 'boolean';
+    out[k] = sensitive ? '[redacted]' : v;
+  }
+  return out;
+}
+
 export class AuditLogService {
   /**
    * Records who changed what, when. Never allowed to fail the operation it's
@@ -28,8 +50,8 @@ export class AuditLogService {
           action: params.action,
           entityType: params.entityType,
           entityId: params.entityId ?? undefined,
-          oldValues: params.oldValues ?? undefined,
-          newValues: params.newValues ?? undefined,
+          oldValues: redactSensitive(params.oldValues),
+          newValues: redactSensitive(params.newValues),
           ipAddress: params.ipAddress ?? undefined,
           userAgent: params.userAgent ?? undefined,
         },
