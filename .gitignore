@@ -39,3 +39,10 @@ coverage/
 
 # Prisma
 backend/prisma/migrations/*_dev/
+
+# Credential dumps. A DATABASE_URL lived in data/secret in a PUBLIC repo for
+# ten months; the database had to be migrated and the old one wiped, because a
+# published credential cannot be un-published. Never track these again.
+data/secret
+*.env.backup
+db-backups/
