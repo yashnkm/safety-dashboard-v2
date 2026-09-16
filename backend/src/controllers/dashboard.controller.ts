@@ -1,6 +1,11 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { safetyMetricsService } from '../services/safetyMetrics.service';
+import {
+  safetyMetricsService,
+  normalizeMonth,
+  normalizeYear,
+  METRIC_MONTHS,
+} from '../services/safetyMetrics.service';
 import { AppError } from '../middleware/errorHandler';
 
 export class DashboardController {
@@ -180,11 +185,22 @@ export class DashboardController {
       throw new AppError(400, 'siteId, month, and year are required');
     }
 
+    // month and year form part of the uniqueness key, so an unrecognised value
+    // creates a duplicate/phantom row rather than failing. Normalise both.
+    const normalizedMonth = normalizeMonth(month);
+    if (!normalizedMonth) {
+      throw new AppError(400, `Invalid month "${month}". Expected one of: ${METRIC_MONTHS.join(', ')}`);
+    }
+    const normalizedYear = normalizeYear(year);
+    if (normalizedYear === null) {
+      throw new AppError(400, `Invalid year "${year}". Expected a whole number between 2000 and 2100`);
+    }
+
     const metric = await safetyMetricsService.upsertMetrics(
       companyId,
       siteId,
-      month,
-      year,
+      normalizedMonth,
+      normalizedYear,
       metricsData,
       role,
       userId,
@@ -226,20 +242,28 @@ export class DashboardController {
     const accessLevel = req.user!.accessLevel;
     const role = req.user!.role;
 
+    // Authorisation before validation: a caller who may not import at all
+    // shouldn't be able to probe what the endpoint accepts.
+    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+      throw new AppError(403, 'Only administrators can import data');
+    }
+
     // Validate required fields
     if (!siteId || !year || !metricsData || !Array.isArray(metricsData)) {
       throw new AppError(400, 'siteId, year, and metricsData array are required');
     }
 
-    // Only SUPER_ADMIN and ADMIN can import
-    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
-      throw new AppError(403, 'Only administrators can import data');
+    // The year applies to every row in the sheet, so a bad value would taint
+    // the whole import. Each row's month is normalised in the service.
+    const normalizedYear = normalizeYear(year);
+    if (normalizedYear === null) {
+      throw new AppError(400, `Invalid year "${year}". Expected a whole number between 2000 and 2100`);
     }
 
     const result = await safetyMetricsService.bulkImportMetrics(
       companyId,
       siteId,
-      year,
+      normalizedYear,
       userId,
       role,
       metricsData,

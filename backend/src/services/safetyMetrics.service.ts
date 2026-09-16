@@ -32,6 +32,54 @@ export const SCORE_DIRECTIONS: ScoreDirection[] = [
   'rate',
 ];
 
+/**
+ * The twelve months, spelled exactly as they are stored.
+ *
+ * `month` is part of the (siteId, month, year) uniqueness key, so a value that
+ * doesn't match does NOT fail — it silently creates a second row for that
+ * month. "Janaury" becomes a thirteenth month; "january" becomes a duplicate of
+ * January. Both then flow into the quarterly/annual averages, which divide by
+ * the number of rows in the period, quietly dragging every percentage
+ * parameter down. Cheap to prevent, invisible and painful to diagnose later.
+ */
+export const METRIC_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/**
+ * Returns the canonical month name, or null if it isn't one.
+ * Matching is case- and whitespace-insensitive and normalises to the stored
+ * spelling, so "  JANUARY " updates the existing January row instead of
+ * creating a rival one.
+ */
+export function normalizeMonth(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const needle = value.trim().toLowerCase();
+  return METRIC_MONTHS.find((m) => m.toLowerCase() === needle) ?? null;
+}
+
+/**
+ * Years are an Int column, so a string like "2025" reaches Prisma and throws,
+ * surfacing as a 500 rather than a clear rejection. The range is deliberately
+ * wide — this only rules out nonsense, not legitimate historical backfill.
+ */
+export function normalizeYear(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value.trim()) : (value as number);
+  if (!Number.isInteger(n) || n < 2000 || n > 2100) return null;
+  return n;
+}
+
 export class SafetyMetricsService {
   /**
    * Get KPI summary for dashboard
@@ -1199,11 +1247,24 @@ export class SafetyMetricsService {
     // Process each month's data
     for (const monthData of metricsData) {
       try {
-        const { month, ...data } = monthData;
+        const { month: rawMonth, ...data } = monthData;
 
-        if (!month) {
+        if (!rawMonth) {
           results.failed++;
           results.errors.push({ month: 'unknown', error: 'Month is required' });
+          continue;
+        }
+
+        // A mistyped or oddly-cased month would otherwise be imported as a
+        // brand-new month rather than updating the real one — and then skew
+        // every period average that includes it.
+        const month = normalizeMonth(rawMonth);
+        if (!month) {
+          results.failed++;
+          results.errors.push({
+            month: String(rawMonth),
+            error: `Unrecognised month "${rawMonth}" — expected one of: ${METRIC_MONTHS.join(', ')}`,
+          });
           continue;
         }
 

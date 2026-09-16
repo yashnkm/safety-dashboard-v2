@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { safetyMetricsService } from '../safetyMetrics.service';
+import {
+  safetyMetricsService,
+  normalizeMonth,
+  normalizeYear,
+  METRIC_MONTHS,
+} from '../safetyMetrics.service';
 
 // The methods under test are declared `private` in the TS class — that's a
 // compile-time-only restriction, so we cast to `any` to reach them directly
@@ -542,5 +547,60 @@ describe('getMetricsForPeriods / getAggregatedMetrics parity (extraction regress
     const scoredA = service.scoreCombined(combinedAcrossSites, weights);
     const scoredB = service.scoreCombined(combinedAcrossTime, weights);
     expect(scoredA.totalScore).toBeCloseTo(scoredB.totalScore, 5);
+  });
+});
+
+// month is part of the (siteId, month, year) uniqueness key, so a value that
+// isn't recognised silently creates a rival row instead of failing — and then
+// drags down every period average that includes it.
+describe('normalizeMonth', () => {
+  it('accepts all twelve canonical months unchanged', () => {
+    for (const m of METRIC_MONTHS) {
+      expect(normalizeMonth(m)).toBe(m);
+    }
+  });
+
+  it('normalises case and surrounding whitespace to the stored spelling', () => {
+    expect(normalizeMonth('january')).toBe('January');
+    expect(normalizeMonth('JANUARY')).toBe('January');
+    expect(normalizeMonth('  December  ')).toBe('December');
+    expect(normalizeMonth('sEpTeMbEr')).toBe('September');
+  });
+
+  it('rejects misspellings rather than inventing a thirteenth month', () => {
+    expect(normalizeMonth('Janaury')).toBeNull(); // the realistic typo
+    expect(normalizeMonth('Jan')).toBeNull(); // abbreviations are not stored
+    expect(normalizeMonth('13')).toBeNull();
+    expect(normalizeMonth('')).toBeNull();
+  });
+
+  it('rejects non-string input instead of coercing it', () => {
+    expect(normalizeMonth(undefined)).toBeNull();
+    expect(normalizeMonth(null)).toBeNull();
+    expect(normalizeMonth(1)).toBeNull();
+    expect(normalizeMonth({})).toBeNull();
+  });
+});
+
+describe('normalizeYear', () => {
+  it('accepts a plain integer year', () => {
+    expect(normalizeYear(2026)).toBe(2026);
+    expect(normalizeYear(2000)).toBe(2000);
+    expect(normalizeYear(2100)).toBe(2100);
+  });
+
+  it('accepts a numeric string, since form and JSON input arrive as text', () => {
+    expect(normalizeYear('2025')).toBe(2025);
+    expect(normalizeYear(' 2025 ')).toBe(2025);
+  });
+
+  it('rejects values that would reach Prisma and surface as a 500', () => {
+    expect(normalizeYear('abc')).toBeNull();
+    expect(normalizeYear(2025.5)).toBeNull();
+    expect(normalizeYear(1999)).toBeNull();
+    expect(normalizeYear(2101)).toBeNull();
+    expect(normalizeYear(null)).toBeNull();
+    expect(normalizeYear(undefined)).toBeNull();
+    expect(normalizeYear({})).toBeNull();
   });
 });
