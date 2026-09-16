@@ -32,7 +32,12 @@ api.interceptors.response.use(
     // credentials, and redirecting there too would wipe out the error
     // message the login page is about to show.
     const hadToken = !!error.config?.headers?.Authorization;
-    if (error.response?.status === 401 && hadToken) {
+    // Logging out is now an authenticated call, so an already-invalid token
+    // makes it 401 — but the user asked to leave, and "your session expired"
+    // would be a confusing way to confirm it. The sign-out path clears local
+    // state itself, so just let the error through.
+    const isLogout = (error.config?.url || '').includes('/auth/logout');
+    if (error.response?.status === 401 && hadToken && !isLogout) {
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
       window.location.href = '/login?sessionExpired=true';

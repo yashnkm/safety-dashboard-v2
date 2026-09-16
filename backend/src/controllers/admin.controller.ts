@@ -274,6 +274,37 @@ export class AdminController {
     });
   }
 
+  // ==================== OBSERVABILITY (SUPER_ADMIN only) ====================
+
+  /**
+   * GET /api/admin/request-logs
+   * Every API call: who, what, status, duration. Retained 14 days.
+   */
+  async getRequestLogs(req: AuthRequest, res: Response) {
+    const { userId, statusClass, path: pathFilter, limit, offset } = req.query;
+    const result = await adminService.getRequestLogs({
+      userId: userId as string | undefined,
+      statusClass: statusClass as string | undefined,
+      path: pathFilter as string | undefined,
+      limit: limit ? parseInt(limit as string, 10) : undefined,
+      offset: offset ? parseInt(offset as string, 10) : undefined,
+    });
+    res.json({ status: 'success', data: result });
+  }
+
+  /**
+   * GET /api/admin/error-logs
+   * Unexpected failures (5xx and thrown exceptions). Retained 90 days.
+   */
+  async getErrorLogs(req: AuthRequest, res: Response) {
+    const { limit, offset } = req.query;
+    const result = await adminService.getErrorLogs({
+      limit: limit ? parseInt(limit as string, 10) : undefined,
+      offset: offset ? parseInt(offset as string, 10) : undefined,
+    });
+    res.json({ status: 'success', data: result });
+  }
+
   // ==================== AUDIT LOGS ====================
 
   /**

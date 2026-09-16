@@ -175,6 +175,23 @@ export const adminService = {
     return response.data;
   },
 
+  // Observability (SUPER_ADMIN only)
+  getRequestLogs: async (params: {
+    userId?: string;
+    statusClass?: string;
+    path?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const response = await api.get('/admin/request-logs', { params });
+    return response.data;
+  },
+
+  getErrorLogs: async (params: { limit?: number; offset?: number }) => {
+    const response = await api.get('/admin/error-logs', { params });
+    return response.data;
+  },
+
   // Audit Logs
   getAuditLogs: async (params: {
     companyId?: string;

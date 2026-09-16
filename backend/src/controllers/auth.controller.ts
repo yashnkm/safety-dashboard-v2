@@ -75,11 +75,29 @@ export class AuthController {
     }
   }
 
-  async logout(req: Request, res: Response) {
-    res.json({
-      status: 'success',
-      message: 'Logged out successfully',
-    });
+  /**
+   * Logging out revokes every token this user currently holds, rather than
+   * only clearing the browser's copy — otherwise "log out" on a shared or
+   * compromised machine achieves nothing server-side for up to 7 days.
+   *
+   * Note this signs the user out everywhere, not just on this device. For a
+   * dashboard where each person uses one machine that is the safer default.
+   *
+   * The route is authenticated, but a caller whose token is already invalid is
+   * effectively logged out anyway, so a 401 here is a harmless outcome.
+   */
+  async logout(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (req.user) {
+        await authService.revokeTokens(req.user.id);
+      }
+      res.json({
+        status: 'success',
+        message: 'Logged out successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   async forgotPassword(req: Request, res: Response, next: NextFunction) {

@@ -69,6 +69,11 @@ model User {
   lastLogin    DateTime? @map("last_login")
   failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime? @map("locked_until")
+  // Tokens issued before this instant are rejected. Set on password reset, on
+  // an admin-initiated password change, and on logout — the only way to revoke
+  // a stateless JWT, which otherwise stays valid for its full 7 days even after
+  // the password it was obtained with has been changed.
+  tokensValidFrom     DateTime? @map("tokens_valid_from")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -403,6 +408,51 @@ model AuditLog {
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+// ==================== OBSERVABILITY ====================
+// Request and error logs deliberately have NO foreign keys to User/Company.
+// A log must outlive the row it describes — deleting a user must not erase the
+// record of what that user did, and AuditLog's cascade (audit_logs above) would
+// do exactly that. Ids and the email are stored denormalised so an entry stays
+// readable after the account is gone.
+
+model RequestLog {
+  id         String   @id @default(uuid())
+  method     String
+  path       String
+  statusCode Int      @map("status_code")
+  durationMs Int      @map("duration_ms")
+  userId     String?  @map("user_id")
+  userEmail  String?  @map("user_email")
+  companyId  String?  @map("company_id")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Pruned to a short retention window, so createdAt is the hot filter.
+  @@index([createdAt])
+  @@index([userId])
+  @@index([statusCode])
+  @@map("request_logs")
+}
+
+model ErrorLog {
+  id         String   @id @default(uuid())
+  message    String
+  stack      String?
+  method     String?
+  path       String?
+  statusCode Int?     @map("status_code")
+  userId     String?  @map("user_id")
+  userEmail  String?  @map("user_email")
+  companyId  String?  @map("company_id")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("error_logs")
 }
 
 // ==================== PASSWORD RESET ====================

@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Users, ArrowLeft, History } from 'lucide-react';
+import { Building2, MapPin, Users, ArrowLeft, History, Activity, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import CompanyManagement from '@/components/admin/CompanyManagement';
 import SiteManagement from '@/components/admin/SiteManagement';
 import UserManagement from '@/components/admin/UserManagement';
 import AuditLogViewer from '@/components/admin/AuditLogViewer';
+import ActivityLogViewer from '@/components/admin/ActivityLogViewer';
+import ErrorLogViewer from '@/components/admin/ErrorLogViewer';
 import { useAuthStore } from '@/store/authStore';
 
-type TabType = 'companies' | 'sites' | 'users' | 'audit';
+type TabType = 'companies' | 'sites' | 'users' | 'audit' | 'activity' | 'errors';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -66,6 +68,24 @@ export default function Admin() {
       icon: History,
       description: 'Who changed what, when',
     },
+    // Platform-operator views: they span every tenant, and error stacks can
+    // expose internal detail, so they are not shown to a client's own ADMIN.
+    ...(user.role === 'SUPER_ADMIN'
+      ? [
+          {
+            id: 'activity' as TabType,
+            label: 'Activity',
+            icon: Activity,
+            description: 'Every API request',
+          },
+          {
+            id: 'errors' as TabType,
+            label: 'Errors',
+            icon: AlertTriangle,
+            description: 'Failures worth investigating',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -125,6 +145,8 @@ export default function Admin() {
           {activeTab === 'sites' && <SiteManagement />}
           {activeTab === 'users' && <UserManagement />}
           {activeTab === 'audit' && <AuditLogViewer />}
+        {activeTab === 'activity' && user.role === 'SUPER_ADMIN' && <ActivityLogViewer />}
+        {activeTab === 'errors' && user.role === 'SUPER_ADMIN' && <ErrorLogViewer />}
         </div>
       </div>
     </div>

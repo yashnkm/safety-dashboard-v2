@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import { observabilityService } from '../services/observability.service';
 
 export class AppError extends Error {
   constructor(
@@ -25,6 +26,26 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
+  // Persist anything unexpected so it is visible in the Admin panel rather than
+  // only in a console nobody is watching. Operational AppErrors (a 400 for a
+  // bad password, a 403 for the wrong role) are normal traffic and would drown
+  // the log, so only 5xx-class AppErrors and genuine exceptions are recorded.
+  const isOperational = err instanceof AppError && err.statusCode < 500;
+  if (!isOperational) {
+    const user = (req as any).user;
+    observabilityService.logError({
+      message: err.message || 'Unknown error',
+      stack: err.stack,
+      method: req.method,
+      path: req.originalUrl || req.path,
+      statusCode: err instanceof AppError ? err.statusCode : 500,
+      userId: user?.id ?? null,
+      companyId: user?.companyId ?? null,
+      ipAddress: req.ip ?? null,
+      userAgent: req.get('user-agent') ?? null,
+    });
+  }
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       status: 'error',

@@ -39,7 +39,9 @@ router.post('/login', loginLimiter, authController.login);
 // was unused by the frontend (users are created via the authenticated Admin
 // Panel), so the route is removed rather than gated. Do not re-add without
 // authenticate + authorize('SUPER_ADMIN') + server-side role validation.
-router.post('/logout', authController.logout);
+// Authenticated so the server knows whose tokens to revoke — logout is now a
+// real server-side action, not just the client dropping its copy.
+router.post('/logout', authenticate, authController.logout);
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
 router.get('/me', authenticate, authController.getMe);

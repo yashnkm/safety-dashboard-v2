@@ -189,6 +189,65 @@ export class AdminService {
     });
   }
 
+  // ==================== OBSERVABILITY ====================
+  // Route-gated to SUPER_ADMIN, so these are not company-scoped: they are
+  // platform-operator views spanning every tenant. Emails are resolved from
+  // the denormalised userId rather than joined, because a log row must stay
+  // readable after the account it refers to has been deleted.
+
+  private async attachUserEmails<T extends { userId: string | null }>(rows: T[]) {
+    const ids = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
+    if (ids.length === 0) return rows.map((r) => ({ ...r, userEmail: null }));
+    const users = await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, email: true },
+    });
+    const byId = new Map(users.map((u) => [u.id, u.email]));
+    return rows.map((r) => ({ ...r, userEmail: r.userId ? byId.get(r.userId) ?? null : null }));
+  }
+
+  async getRequestLogs(filters: {
+    userId?: string;
+    statusClass?: string;
+    path?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const where: any = {};
+    if (filters.userId) where.userId = filters.userId;
+    if (filters.path) where.path = { contains: filters.path };
+    // e.g. "4" -> 400-499, "5" -> 500-599
+    if (filters.statusClass) {
+      const base = parseInt(filters.statusClass, 10) * 100;
+      if (Number.isFinite(base)) where.statusCode = { gte: base, lt: base + 100 };
+    }
+
+    const take = Math.min(filters.limit ?? 100, 200);
+    const [rows, total] = await Promise.all([
+      prisma.requestLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip: filters.offset ?? 0,
+      }),
+      prisma.requestLog.count({ where }),
+    ]);
+    return { logs: await this.attachUserEmails(rows), total };
+  }
+
+  async getErrorLogs(filters: { limit?: number; offset?: number }) {
+    const take = Math.min(filters.limit ?? 50, 200);
+    const [rows, total] = await Promise.all([
+      prisma.errorLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip: filters.offset ?? 0,
+      }),
+      prisma.errorLog.count(),
+    ]);
+    return { logs: await this.attachUserEmails(rows), total };
+  }
+
   // ==================== SITES ====================
 
   async getSites(companyId?: string) {
@@ -437,6 +496,17 @@ export class AdminService {
     if (data.password !== undefined && data.password !== null && data.password !== '') {
       this.assertValidPassword(data.password);
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
+      // An admin resetting someone's password must end that person's existing
+      // sessions too — otherwise a compromised account stays reachable with the
+      // old token for the rest of its 7-day life.
+      updateData.tokensValidFrom = new Date();
+    }
+
+    // Deactivating an account already blocks new requests via the isActive
+    // check, but stamping the cutoff makes the revocation explicit and
+    // survives the account being re-enabled later.
+    if (data.isActive === false) {
+      updateData.tokensValidFrom = new Date();
     }
 
     return await prisma.user.update({

@@ -8,6 +8,8 @@ import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { cleanupOrphanedLogos } from './services/logoCleanup.service';
 import { backupUploads } from './services/uploadsBackup.service';
+import { requestLogger } from './middleware/requestLogger';
+import { observabilityService } from './services/observability.service';
 
 const app = express();
 
@@ -60,6 +62,13 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// Records one row per API request (who / what / status / duration). Mounted
+// before the routes so it sees every one, but it hooks res 'finish', so the row
+// is written after the response is sent and never adds latency. It is after the
+// rate limiter deliberately: a request rejected with 429 is exactly the kind we
+// want a record of.
+app.use('/api', requestLogger);
+
 // Routes
 app.use('/api', routes);
 
@@ -77,6 +86,9 @@ app.use((req, res) => {
 // Start server
 const PORT = config.port;
 app.listen(PORT, () => {
+  // Keeps request/error logs inside their retention window. Without this the
+  // request log grows unbounded and can exhaust the database's storage quota.
+  observabilityService.startRetentionJob();
   console.log(`🚀 Safety Dashboard API server running on port ${PORT}`);
   console.log(`📊 API: http://localhost:${PORT}/api`);
   console.log(`🔍 Health check: http://localhost:${PORT}/api/health`);

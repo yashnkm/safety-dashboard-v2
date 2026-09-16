@@ -246,6 +246,18 @@ export class AuthService {
   }
 
   /**
+   * Invalidates every token already issued to this user. Stateless JWTs can't
+   * be individually revoked, so the user row carries a cutoff instant and the
+   * auth middleware refuses anything older.
+   */
+  async revokeTokens(userId: string) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { tokensValidFrom: new Date() },
+    });
+  }
+
+  /**
    * Consumes a reset token (single use, 1-hour expiry) and sets a new password.
    */
   async resetPassword(token: string, newPassword: string) {
@@ -264,10 +276,19 @@ export class AuthService {
     await prisma.$transaction([
       prisma.user.update({
         where: { id: resetToken.userId },
-        data: { passwordHash },
+        // Revoke every token issued before now: resetting a password must end
+        // any session obtained with the old one, which is the whole point of
+        // resetting it after a suspected compromise.
+        data: { passwordHash, tokensValidFrom: new Date() },
       }),
       prisma.passwordResetToken.update({
         where: { id: resetToken.id },
+        data: { used: true },
+      }),
+      // Any other outstanding reset tokens for this user are now moot — burn
+      // them so an attacker holding a second link can't reuse it.
+      prisma.passwordResetToken.updateMany({
+        where: { userId: resetToken.userId, used: false },
         data: { used: true },
       }),
     ]);

@@ -20,6 +20,22 @@ router.post(
   asyncHandler(adminController.uploadLogo.bind(adminController))
 );
 
+// ==================== OBSERVABILITY ====================
+// SUPER_ADMIN only: these span every tenant, and error stacks can expose
+// internal detail that clients should never see.
+
+router.get(
+  '/request-logs',
+  authorize('SUPER_ADMIN'),
+  asyncHandler(adminController.getRequestLogs.bind(adminController))
+);
+
+router.get(
+  '/error-logs',
+  authorize('SUPER_ADMIN'),
+  asyncHandler(adminController.getErrorLogs.bind(adminController))
+);
+
 // ==================== COMPANIES ====================
 // Only SUPER_ADMIN can manage companies
 
